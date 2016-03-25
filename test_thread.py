@@ -13,9 +13,7 @@ from rnn_mots.operations import RNN_mots
 # moduleName = "min-char-rnn-origin"
 # importlib.import_module(moduleName)
 
-class Afficheur(Thread):
-
-    """Thread chargé simplement d'afficher une lettre dans la console."""
+"""class Afficheur(Thread):
 
     def __init__(self, lettre, ite):
         Thread.__init__(self)
@@ -23,7 +21,6 @@ class Afficheur(Thread):
         self.ite = ite
 
     def run(self):
-        """Code à exécuter pendant l'exécution du thread."""
         i = 0
         while i < self.ite:
             sys.stdout.write(self.lettre)
@@ -31,12 +28,12 @@ class Afficheur(Thread):
             attente = 0.2
             attente += random.randint(1, 60) / 100
             time.sleep(attente)
-            i += 1
+            i += 1"""
 
 #print "Nombre d'iterations : ",sys.argv[1]
 #nbr_it = sys.argv[1]
-nbr_it = 10000
-name_file = 'input.txt'
+nbr_it = 30
+name_file = 'hello_world.txt'
 
 influ_lettre = 3.0
 influ_lettre_1 = 1.0

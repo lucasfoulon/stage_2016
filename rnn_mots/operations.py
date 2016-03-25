@@ -198,17 +198,19 @@ class RNN_mots(Thread):
       ixes.append(ix)
     return ixes
 
-  def sample_next(self, h, prev_w, current_word=None):
+  def sample_next(self, h, prev_w, current_word=None,context_change=False):
     """ 
     L'ERREUR EST PAR ICI??
     etre sur que apres un espace, prev_word est correct...
     """
 
     """Pour ne pas recalculer a chaque fois"""
-    if self.prev_word != prev_w:
+    if context_change:
       self.prev_word = prev_w
 
-      print "\nmot precedent : ",self.prev_word,
+      print "le mot courant est vide, on change de contexte, avec mot precedent: ",self.prev_word
+
+      #print "\nmot precedent : ",self.prev_word,
 
       if self.prev_word in self.ix_to_mots:
         self.seed_ix = self.ix_to_mots[self.prev_word]
@@ -217,7 +219,7 @@ class RNN_mots(Thread):
       else:
         self.seed_ix = 0
 
-      print "mot eq trouve : ",self.ix_to_mots[self.seed_ix]
+      #print "mot eq trouve : ",self.ix_to_mots[self.seed_ix]
 
       #print "seed_ix : ",self.seed_ix
       x = np.zeros((self.vocab_size, 1))
@@ -230,18 +232,21 @@ class RNN_mots(Thread):
       #ix = np.random.choice(range(self.vocab_size), p=p.ravel())
 
       #print p
-      print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+      #print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
       p[np.nanargmax(p)] = np.nan
-      if len(p) > 1:
+      """if len(p) > 1:
         print "2 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
         p[np.nanargmax(p)] = np.nan
       if len(p) > 2:
-        print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+        print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]"""
 
       """Pour que les y des mots augmente la proba des prochaines lettres"""
       self.y -= np.amin(self.y)
 
       self.hprev = h
+
+    else:
+      print "on ne change pas de context avec mot courant :",current_word
 
     return self.y, self.mots
 

@@ -132,6 +132,8 @@ class RNN_lettre(Thread):
     self.char_to_ix[":"],self.char_to_ix["'"],self.char_to_ix['"'],self.char_to_ix["."],
     self.char_to_ix["-"]]"""
 
+    context = False
+
     for t in xrange(n):
       h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
       y = np.dot(self.Why, h) + self.by
@@ -148,11 +150,11 @@ class RNN_lettre(Thread):
         Appelle au deuxieme niveau du reseau
         """
         #print current_word
-        y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word)
 
         """Si le mot courant n'est pas vide"""
         if current_word != "":
           #print "current_word PAS VIDE !!"  
+          y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
 
           """TEST"""
           """liste pour compter le nombre de mot commençant par le car"""
@@ -195,6 +197,7 @@ class RNN_lettre(Thread):
           """TEST"""
         else:
           #print "current_word VIDE !!"
+          y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
 
           """liste pour compter le nombre de mot commençant par le car"""
           nbr_mot_start_char = np.zeros((self.vocab_size, 1))
@@ -233,7 +236,12 @@ class RNN_lettre(Thread):
           y[self.char_to_ix["."]] -= 10
           y[self.char_to_ix["-"]] -= 10"""
 
+
+          y[self.char_to_ix[" "]] = 5
+
           p = np.exp(y) / np.sum(np.exp(y))
+
+
         #print p
 
         """FIN TEST"""
@@ -244,32 +252,45 @@ class RNN_lettre(Thread):
       ixes.append(ix)
 
       if rnn_mots != None:
-        # Si un caractere espace ou entree est deja survenu
-        if containAtLeastOneWord(ixes, ix_charspe) and rnn_mots != None:
-          last = -1
-          second_last = -1
-          space_position = (i for i,x in enumerate(ixes) if (isAtLeastOneWord(x, ix_charspe)))
-          for i in space_position:
-            second_last = last
-            last = i
-          # Si le dernier caractere apparu est un espace ou une entree
-          if (isAtLeastOneWord(ix, ix_charspe)):
-            word = ixes[second_last+1:last]
-            prev_word = ''.join(self.ix_to_char[ix] for ix in word)
-          word2 = ixes[last+1:]
-          current_word = ''.join(self.ix_to_char[ix] for ix in word2)
-        else:
-          current_word = ''.join(self.ix_to_char[ix] for ix in ixes)
+        prev_word, current_word, context = self.list_last_word(prev_word, current_word, ix, ixes, ix_charspe)
+        #print "\nmot precedent : ", prev_word
+        #print "mot courant : ", current_word
 
     """WARNING : Pour ne pas influencer les prochaines predictions"""
     if rnn_mots != None:
       rnn_mots.reinit_hprev()
+    """idem"""
     self.hprev = np.zeros((self.hidden_size,1))
 
     return ixes
 
+  def list_last_word(self, prev_word, current_word, ix, ixes, ix_charspe):
+
+    context = False
+    # Si un caractere special est deja survenu
+    if containAtLeastOneWord(ixes, ix_charspe):
+      
+      last = -1
+      second_last = -1
+      space_position = (i for i,x in enumerate(ixes) if (isAtLeastOneWord(x, ix_charspe)))
+      for i in space_position:
+        second_last = last
+        last = i
+      # Si le dernier caractere apparu est un espace ou une entree
+      if (isAtLeastOneWord(ix, ix_charspe)):
+        #print "second_last+1 : ",(second_last+1)," et last : ",last
+        word = ixes[second_last+1:last]
+        if second_last+1 < last:
+          prev_word = ''.join(self.ix_to_char[ix] for ix in word)
+          context = True
+      word2 = ixes[last+1:]
+      current_word = ''.join(self.ix_to_char[ix] for ix in word2)
+    else:
+      current_word = ''.join(self.ix_to_char[ix] for ix in ixes)
+    return prev_word, current_word, context
+
   def prediction(self,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0):
-    sample_ix = self.sample(self.hprev, self.inputs[0], 500, rnn_mots,i_lettre,i_lettre_1)
+    sample_ix = self.sample(self.hprev, self.inputs[0], 50, rnn_mots,i_lettre,i_lettre_1)
     txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
     print '----\n %s \n----' % (txt, )
 
