@@ -208,7 +208,7 @@ class RNN_mots(Thread):
     if context_change:
       self.prev_word = prev_w
 
-      print "le mot courant est vide, on change de contexte, avec mot precedent: ",self.prev_word
+      #print "le mot courant est vide, on change de contexte, avec mot precedent: ",self.prev_word
 
       #print "\nmot precedent : ",self.prev_word,
 
@@ -245,8 +245,8 @@ class RNN_mots(Thread):
 
       self.hprev = h
 
-    else:
-      print "on ne change pas de context avec mot courant :",current_word
+    #else:
+      #print "on ne change pas de context avec mot courant :",current_word
 
     return self.y, self.mots
 

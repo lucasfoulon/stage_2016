@@ -236,9 +236,6 @@ class RNN_lettre(Thread):
           y[self.char_to_ix["."]] -= 10
           y[self.char_to_ix["-"]] -= 10"""
 
-
-          y[self.char_to_ix[" "]] = 5
-
           p = np.exp(y) / np.sum(np.exp(y))
 
 
