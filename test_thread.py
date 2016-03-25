@@ -35,8 +35,11 @@ class Afficheur(Thread):
 
 #print "Nombre d'iterations : ",sys.argv[1]
 #nbr_it = sys.argv[1]
-nbr_it = 5000
+nbr_it = 10000
 name_file = 'input.txt'
+
+influ_lettre = 3.0
+influ_lettre_1 = 1.0
 
 # Création des threads
 #thread_1 = Afficheur("1",10)
@@ -64,15 +67,18 @@ for i in range(1,2) :
     print "\n\n prediction une couche avec ",nbr_it," iterations"
     thread_rnn_lettre.prediction()
     print "\n\n prediction deux couches avec ",nbr_it," iterations à chaque niveau"
-    thread_rnn_lettre.prediction(rnn_mots=thread_rnn_mots)
+    thread_rnn_lettre.prediction(rnn_mots=thread_rnn_mots,i_lettre=influ_lettre,i_lettre_1=influ_lettre_1)
+    thread_rnn_lettre.pertes()
 
 thread_rnn_lettre.apprentissage()
 thread_rnn_lettre.join()
 for i in range(1,2) :
     print "\n\n prediction une couche avec ",nbr_it*2," iterations"
     thread_rnn_lettre.prediction()
+    thread_rnn_lettre.pertes()
     print "\n\n prediction une couche MOT avec ",nbr_it," iterations"
     thread_rnn_mots.prediction()
+    thread_rnn_mots.pertes()
 #print "\n\n prediction seulement les mots"
 #thread_rnn_mots.prediction()
 #thread_rnn.pertes()

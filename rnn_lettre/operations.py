@@ -25,7 +25,7 @@ def isAtLeastOneWord(char, words):
 
 class RNN_lettre(Thread):
 
-  def __init__(self, nbr,n_file):
+  def __init__(self,nbr,n_file):
     Thread.__init__(self)
 
     self.nbr_it = nbr
@@ -94,11 +94,15 @@ class RNN_lettre(Thread):
       np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
     return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1]
 
-  def sample(self,h,seed_ix,n,rnn_mots=None):
+  def sample(self,h,seed_ix,n,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0):
     """ 
     sample a sequence of integers from the model 
     h is memory state, seed_ix is seed letter for first time step
     """
+
+    self.influ_lettre = i_lettre
+    self.influ_lettre_1 = i_lettre_1
+
     x = np.zeros((self.vocab_size, 1))
     x[seed_ix] = 1
     ixes = []
@@ -168,7 +172,7 @@ class RNN_lettre(Thread):
                 """On retient tout les mots correspondant au mot courant"""
                 cmpt_word_find.append(word)
                 """ on augmente le y du ieme caractere du mot """
-                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*5.0)
+                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre)
                 """
                 Si on fait comme pour le premier caractere:
                 Ne montre pas de difference significative avec le rnn simple
@@ -201,6 +205,8 @@ class RNN_lettre(Thread):
           #print nbr_mot_start_char
           """On parcours la liste de mot predictible"""
           for ix_word,word in enumerate(list_word):
+
+            """Ici le if ne sert a rien """
             if word.find(current_word) == 0:
               """ test si le mot n'est pas encore fini d'etre ecrit """
               if len(word) > len(current_word):
@@ -211,11 +217,11 @@ class RNN_lettre(Thread):
                 sinon predit trop souvent les mots commencant par la meme lettre"""
                 #y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*1.0)
                 if nbr_mot_start_char[self.char_to_ix[word[0]]] < 2:
-                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*0.5)
+                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1)
                 else:
                   #print "Val >=2 !!!!!!!!!"
                   val = nbr_mot_start_char[self.char_to_ix[word[0]]]
-                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*0.5 / val )
+                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 / val )
 
           #print p
           #y[self.char_to_ix[" "]] += 100
@@ -258,16 +264,17 @@ class RNN_lettre(Thread):
     """WARNING : Pour ne pas influencer les prochaines predictions"""
     if rnn_mots != None:
       rnn_mots.reinit_hprev()
+    self.hprev = np.zeros((self.hidden_size,1))
 
     return ixes
 
-  def prediction(self,rnn_mots=None):
-    sample_ix = self.sample(self.hprev, self.inputs[0], 200, rnn_mots)
+  def prediction(self,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0):
+    sample_ix = self.sample(self.hprev, self.inputs[0], 500, rnn_mots,i_lettre,i_lettre_1)
     txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
     print '----\n %s \n----' % (txt, )
 
   def pertes(self):
-    print 'iter %d, loss: %f' % (self.n, self.smooth_loss)
+    print 'loss: %f' % (self.smooth_loss)
 
   def run(self):
     """Pour permettre de continuer a apprendre et de ne pas remettre a chaque fois les matrices a zero"""

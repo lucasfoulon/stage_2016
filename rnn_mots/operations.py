@@ -134,6 +134,8 @@ class RNN_mots(Thread):
     # Pour eviter le recalcul du mot suivant dans sample_next
     self.prev_word = ""
     self.seed_ix = 0
+    #idem
+    self.y = np.zeros((self.vocab_size, 1))
 
   def lossFun(self, inputs, targets, hprev):
     """
@@ -206,7 +208,7 @@ class RNN_mots(Thread):
     if self.prev_word != prev_w:
       self.prev_word = prev_w
 
-      #print "\nmot precedent : ",self.prev_word,
+      print "\nmot precedent : ",self.prev_word,
 
       if self.prev_word in self.ix_to_mots:
         self.seed_ix = self.ix_to_mots[self.prev_word]
@@ -215,27 +217,33 @@ class RNN_mots(Thread):
       else:
         self.seed_ix = 0
 
-      #print "mot eq trouve : ",self.ix_to_mots[self.seed_ix]
+      print "mot eq trouve : ",self.ix_to_mots[self.seed_ix]
 
-    #print "seed_ix : ",self.seed_ix
-    x = np.zeros((self.vocab_size, 1))
-    x[self.seed_ix] = 1
-    #print "x = ",x
-    ixes = []
-    h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, self.hprev) + self.bh)
-    y = np.dot(self.Why, h) + self.by
-    p = np.exp(y) / np.sum(np.exp(y))
-    #ix = np.random.choice(range(self.vocab_size), p=p.ravel())
+      #print "seed_ix : ",self.seed_ix
+      x = np.zeros((self.vocab_size, 1))
+      x[self.seed_ix] = 1
+      #print "x = ",x
+      ixes = []
+      h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, self.hprev) + self.bh)
+      self.y = np.dot(self.Why, h) + self.by
+      p = np.exp(self.y) / np.sum(np.exp(self.y))
+      #ix = np.random.choice(range(self.vocab_size), p=p.ravel())
 
-    #print p
-    #print "mot predit : ",self.ix_to_mots[np.nanargmax(p)]
+      #print p
+      print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+      p[np.nanargmax(p)] = np.nan
+      if len(p) > 1:
+        print "2 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+        p[np.nanargmax(p)] = np.nan
+      if len(p) > 2:
+        print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
 
-    """Pour que les y des mots augmente la proba des prochaines lettres"""
-    y -= np.amin(y)
+      """Pour que les y des mots augmente la proba des prochaines lettres"""
+      self.y -= np.amin(self.y)
 
-    self.hprev = h
+      self.hprev = h
 
-    return y, self.mots
+    return self.y, self.mots
 
   def comp_word(self, prev_word):
     #print "\nComp_Word , ",prev_word
