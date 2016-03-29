@@ -7,7 +7,7 @@ import numpy as np
 import time
 from threading import Thread
 
-import codecs
+from datetime import datetime
 
 print "module RNN_mots importe"
 
@@ -32,11 +32,10 @@ class RNN_lettre(Thread):
 
     self.nbr_it = nbr
 
-    name_file = n_file
+    self.name_file = n_file
 
     # data I/O
-    self.data = codecs.open(name_file, 'r').read() # should be simple plain text file
-
+    self.data = open(self.name_file, 'r').read() # should be simple plain text file
 
     #print self.data.decode('string_escape')
     #TEST DECODE
@@ -48,7 +47,7 @@ class RNN_lettre(Thread):
     self.char_to_ix = { ch:i for i,ch in enumerate(self.chars) }
     self.ix_to_char = { i:ch for i,ch in enumerate(self.chars) }
 
-    print self.char_to_ix
+    #print self.char_to_ix
     print self.ix_to_char
 
     # hyperparameters
@@ -105,11 +104,16 @@ class RNN_lettre(Thread):
       np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
     return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1]
 
-  def sample(self,h,seed_ix,n,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0):
+  def sample(self,h,seed_ix,n,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0,ecrire_fichier=False):
     """ 
     sample a sequence of integers from the model 
     h is memory state, seed_ix is seed letter for first time step
     """
+
+    if ecrire_fichier:
+      now = datetime.now()
+      name_file_proba = ""+str(now.year)+"_"+str(now.month)+"_"+str(now.day)+"_"+str(now.hour)+"_"+str(now.minute)+"-"+str(n)+"-"+self.name_file
+      ecriture_proba = open("test_proba/"+name_file_proba, "w")
 
     self.influ_lettre = i_lettre
     self.influ_lettre_1 = i_lettre_1
@@ -155,6 +159,9 @@ class RNN_lettre(Thread):
       """
       if rnn_mots != None:
 
+        #p = np.exp(y) / np.sum(np.exp(y))
+        #print "\n******",current_word,"****** \n",p
+
         """Si le mot courant n'est pas vide"""
         if t == 0 or context:
           y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
@@ -166,16 +173,17 @@ class RNN_lettre(Thread):
           if word.find(current_word) == 0 and len(word) > len(current_word):
             nbr_mot_start_char[self.char_to_ix[word[len(current_word)]]] += 1
 
-        cmpt_word_find = []
+        word_find = False
         """On parcours la liste de mot predictible"""
         for ix_word,word in enumerate(list_word):
           """ Si le debut du mot correspond au mot courant et si le mot n'est pas encore fini d'etre ecrit alors """
           if word.find(current_word) == 0 and len(word) > len(current_word):
+            
+            """On a trouve un mot qui peut correspondre"""
+            word_find = True
 
             """Si le mot courant n'est pas vide"""
             if current_word != "":
-              """On retient tout les mots correspondant au mot courant"""
-              cmpt_word_find.append(word)
               """ on augmente le y du ieme caractere du mot """
               y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre)
 
@@ -189,13 +197,18 @@ class RNN_lettre(Thread):
 
         """TEST : si aucun mot ne colle"""
         """ A TESTER : ne pas additionner mais 'multiplier' la valeur, attention au y negatif"""
-        if len(cmpt_word_find) == 0:
+        if word_find:
           for ix_char in ix_charspe:
             y[ix_char] += 1
         """FIN TEST"""
 
       p = np.exp(y) / np.sum(np.exp(y))
+      #if rnn_mots != None:
+        #print "************ \n",p
       ix = np.random.choice(range(self.vocab_size), p=p.ravel())
+      """Ecriture proba dans fichier"""
+      if ecrire_fichier:
+        ecriture_proba.write(str(self.ix_to_char[ix])+": "+str(p[ix])+"\n")
       x = np.zeros((self.vocab_size, 1))
       x[ix] = 1
       #print "on ajoute : ", ix
@@ -211,6 +224,9 @@ class RNN_lettre(Thread):
       rnn_mots.reinit_hprev()
     """idem"""
     self.hprev = np.zeros((self.hidden_size,1))
+
+    if ecrire_fichier:
+      ecriture_proba.close()
 
     return ixes
 
@@ -239,8 +255,8 @@ class RNN_lettre(Thread):
       current_word = ''.join(self.ix_to_char[ix] for ix in ixes)
     return prev_word, current_word, context
 
-  def prediction(self,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0):
-    sample_ix = self.sample(self.hprev, self.inputs[0], 500, rnn_mots,i_lettre,i_lettre_1)
+  def prediction(self,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0,ecrire_fichier=False):
+    sample_ix = self.sample(self.hprev, self.inputs[0], 200, rnn_mots,i_lettre,i_lettre_1,ecrire_fichier)
     txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
     print '----\n %s \n----' % (txt, )
 

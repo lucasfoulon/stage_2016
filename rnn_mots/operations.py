@@ -221,10 +221,6 @@ class RNN_mots(Thread):
     #print "* prev word : ", prev_w, " et seed_ix = ",self.seed_ix
     #print "mot eq trouve : ",self.ix_to_mots[self.seed_ix], " et mot en cours : ",current_word
 
-    """TEST"""
-    if current_word != "":
-      list_word_compatible = []
-
       #print "seed_ix : ",self.seed_ix
     x = np.zeros((self.vocab_size, 1))
     x[self.seed_ix] = 1
@@ -245,6 +241,9 @@ class RNN_mots(Thread):
       print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]"""
 
     """Pour que les y des mots augmente la proba des prochaines lettres"""
+    #print np.amin(self.y)
+    #print np.amax(self.y)
+
     self.y -= np.amin(self.y)
 
     #if not context_change:
