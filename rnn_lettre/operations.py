@@ -148,89 +148,38 @@ class RNN_lettre(Thread):
     for t in xrange(n):
       h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
       y = np.dot(self.Why, h) + self.by
-      p = np.exp(y) / np.sum(np.exp(y))
 
-      """Si le prochain caractere predit N'EST PAS un caractere special"""
-      #if not isAtLeastOneWord(ix, ix_charspe): 
-      if rnn_mots == None:
-        ix = np.random.choice(range(self.vocab_size), p=p.ravel())
-      # Si le reseau possede un 2eme niveau
-      else:
 
-        """
-        Appelle au deuxieme niveau du reseau
-        """
-        #print current_word
+      """
+      Appelle au deuxieme niveau du reseau
+      """
+      if rnn_mots != None:
 
         """Si le mot courant n'est pas vide"""
-        if current_word != "":
-          #print "current_word PAS VIDE !!" 
-          if t == 0 or context:
-            y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
+        if t == 0 or context:
+          y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
 
-          """TEST"""
-          """liste pour compter le nombre de mot commençant par le car"""
-          #nbr_mot_start_char = np.zeros((self.vocab_size, 1))
-          """On parcours la liste de mot predictible"""
-          """for word in list_word:
-            if len(word) > len(current_word):
-              nbr_mot_start_char[self.char_to_ix[word[len(current_word)]]] += 1"""
-          """FIN TEST"""
+        """liste pour compter le nombre de mot qui predit le meme caractere"""
+        nbr_mot_start_char = np.zeros((self.vocab_size, 1))
+        """On parcours la liste de mot predictible qui predit la meme lettre"""
+        for word in list_word:
+          if word.find(current_word) == 0 and len(word) > len(current_word):
+            nbr_mot_start_char[self.char_to_ix[word[len(current_word)]]] += 1
 
-          cmpt_word_find = []
-          #print "mot courant : ", current_word
-          #print "proba mots : ", y_word
-          """On parcours la liste de mot predictible"""
-          for ix_word,word in enumerate(list_word):
-            """ Si le debut du mot correspond au mot courant alors """
-            if word.find(current_word) == 0:
-              """ test si le mot n'est pas encore fini d'etre ecrit """
-              if len(word) > len(current_word):
-                """On retient tout les mots correspondant au mot courant"""
-                cmpt_word_find.append(word)
-                """ on augmente le y du ieme caractere du mot """
-                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre)
-                """
-                Si on fait comme pour le premier caractere:
-                Ne montre pas de difference significative avec le rnn simple
-                if nbr_mot_start_char[self.char_to_ix[word[len(current_word)]]] < 2:
-                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*1.0)
-                else:
-                  #print "Val >=2 !!!!!!!!!"
-                  val = nbr_mot_start_char[self.char_to_ix[word[len(current_word)]]]
-                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*1.0 / val )
-                """
+        cmpt_word_find = []
+        """On parcours la liste de mot predictible"""
+        for ix_word,word in enumerate(list_word):
+          """ Si le debut du mot correspond au mot courant et si le mot n'est pas encore fini d'etre ecrit alors """
+          if word.find(current_word) == 0 and len(word) > len(current_word):
 
-          """TEST : si aucun mot ne colle"""
-          """ A TESTER : ne pas additionner mais 'multiplier' la valeur, attention au y negatif"""
-          if len(cmpt_word_find) == 0:
-            for ix_char in ix_charspe:
-              y[ix_char] += 1
-
-          """TEST"""
-        else:
-          #print "current_word VIDE !!"
-          if t == 0 or context:
-            y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
-
-          """liste pour compter le nombre de mot commençant par le car"""
-          nbr_mot_start_char = np.zeros((self.vocab_size, 1))
-          """On parcours la liste de mot predictible commencant par la meme lettre"""
-          for word in list_word:
-            nbr_mot_start_char[self.char_to_ix[word[0]]] += 1
-          #print self.ix_to_char
-          #print nbr_mot_start_char
-          """On parcours la liste de mot predictible"""
-          for ix_word,word in enumerate(list_word):
-
-            """ test si le mot n'est pas encore fini d'etre ecrit """
-            if len(word) > len(current_word):
+            """Si le mot courant n'est pas vide"""
+            if current_word != "":
               """On retient tout les mots correspondant au mot courant"""
-              #cmpt_word_find.append(word)
-              """ on augmente le y du ieme caractere du mot 
-              On divise par le nombre d'apparition dans le dictionnaire des mots commencant par la meme RNN_lettre
-              sinon predit trop souvent les mots commencant par la meme lettre"""
-              #y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*1.0)
+              cmpt_word_find.append(word)
+              """ on augmente le y du ieme caractere du mot """
+              y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre)
+
+            else:
               if nbr_mot_start_char[self.char_to_ix[word[0]]] < 2:
                 y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1)
               else:
@@ -238,24 +187,15 @@ class RNN_lettre(Thread):
                 val = nbr_mot_start_char[self.char_to_ix[word[0]]]
                 y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 / val )
 
-          #print p
-          #y[self.char_to_ix[" "]] += 100
-          """y[self.char_to_ix["\n"]] -= 10
-          y[self.char_to_ix[","]] -= 10
-          y[self.char_to_ix[":"]] -= 10
-          y[self.char_to_ix["'"]] -= 10
-          y[self.char_to_ix['"']] -= 10
-          y[self.char_to_ix["."]] -= 10
-          y[self.char_to_ix["-"]] -= 10"""
-
-        p = np.exp(y) / np.sum(np.exp(y))
-
-
-        #print p
-
+        """TEST : si aucun mot ne colle"""
+        """ A TESTER : ne pas additionner mais 'multiplier' la valeur, attention au y negatif"""
+        if len(cmpt_word_find) == 0:
+          for ix_char in ix_charspe:
+            y[ix_char] += 1
         """FIN TEST"""
 
-        ix = np.random.choice(range(self.vocab_size), p=p.ravel())
+      p = np.exp(y) / np.sum(np.exp(y))
+      ix = np.random.choice(range(self.vocab_size), p=p.ravel())
       x = np.zeros((self.vocab_size, 1))
       x[ix] = 1
       #print "on ajoute : ", ix
