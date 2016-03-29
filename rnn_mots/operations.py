@@ -62,11 +62,11 @@ class RNN_mots(Thread):
         # separation des caracteres speciaux "colle" au mot
         li[:] = [replacePonctuation(',',word) for word in li[:]]
         li[:] = [replacePonctuation('.',word) for word in li[:]]
-        li[:] = [replacePonctuation('-',word) for word in li[:]]
+        if '-' in li : li[:] = [replacePonctuation('-',word) for word in li[:]]
         li[:] = [replacePonctuation('!',word) for word in li[:]]
         li[:] = [replacePonctuation('\'',word) for word in li[:]]
         li[:] = [replacePonctuation(':',word) for word in li[:]]
-        li[:] = [replacePonctuation('"',word) for word in li[:]]
+        if '"' in li : li[:] = [replacePonctuation('"',word) for word in li[:]]
         li = list(flatten(li))
         while '' in li:
           li.remove('')
@@ -127,6 +127,7 @@ class RNN_mots(Thread):
 
     # LUCAS init hprev to use in prediction fct
     self.hprev = np.zeros((self.hidden_size,1))
+    self.hprev_prec = np.zeros((self.hidden_size,1))
     #idem pour 
     self.inputs = [self.char_to_ix[ch] for ch in self.data[0:self.seq_length]]
     self.smooth_loss = -np.log(1.0/self.vocab_size)*self.seq_length # loss at iteration 0
@@ -205,12 +206,17 @@ class RNN_mots(Thread):
     """
 
     """Pour ne pas recalculer a chaque fois"""
+    """
+    TODO
+    Si, il le faut, pour eliminer les mots pas choisit par le niveau 1, mais sans changer le context hprev
+    """
     if context_change:
-      self.prev_word = prev_w
+      self.prev_word = prev_w 
+      self.hprev = self.hprev_prec
 
-      #print "le mot courant est vide, on change de contexte, avec mot precedent: ",self.prev_word
+      print "\nle mot courant est vide, on change de contexte"
 
-      #print "\nmot precedent : ",self.prev_word,
+      #print "mot precedent : ",self.prev_word,
 
       if self.prev_word in self.ix_to_mots:
         self.seed_ix = self.ix_to_mots[self.prev_word]
@@ -219,34 +225,40 @@ class RNN_mots(Thread):
       else:
         self.seed_ix = 0
 
-      #print "mot eq trouve : ",self.ix_to_mots[self.seed_ix]
+    print "* prev word : ", prev_w, " et seed_ix = ",self.seed_ix
+    print "mot eq trouve : ",self.ix_to_mots[self.seed_ix], " et mot en cours : ",current_word
+
+    """TEST"""
+    if current_word != "":
+      list_word_compatible = []
 
       #print "seed_ix : ",self.seed_ix
-      x = np.zeros((self.vocab_size, 1))
-      x[self.seed_ix] = 1
-      #print "x = ",x
-      ixes = []
-      h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, self.hprev) + self.bh)
-      self.y = np.dot(self.Why, h) + self.by
-      p = np.exp(self.y) / np.sum(np.exp(self.y))
-      #ix = np.random.choice(range(self.vocab_size), p=p.ravel())
+    x = np.zeros((self.vocab_size, 1))
+    x[self.seed_ix] = 1
+    #print "x = ",x
+    ixes = []
+    h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, self.hprev) + self.bh)
+    self.y = np.dot(self.Why, h) + self.by
+    p = np.exp(self.y) / np.sum(np.exp(self.y))
+    #ix = np.random.choice(range(self.vocab_size), p=p.ravel())
 
-      #print p
-      #print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+    print p
+    print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+    p[np.nanargmax(p)] = np.nan
+    if len(p) > 1:
+      print "2 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
       p[np.nanargmax(p)] = np.nan
-      """if len(p) > 1:
-        print "2 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
-        p[np.nanargmax(p)] = np.nan
-      if len(p) > 2:
-        print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]"""
+    if len(p) > 2:
+      print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
 
-      """Pour que les y des mots augmente la proba des prochaines lettres"""
-      self.y -= np.amin(self.y)
+    """Pour que les y des mots augmente la proba des prochaines lettres"""
+    self.y -= np.amin(self.y)
 
-      self.hprev = h
+    if not context_change:
+      self.hprev_prec = h
 
-    #else:
-      #print "on ne change pas de context avec mot courant :",current_word
+    else:
+      print "on ne change pas de context avec mot courant :",current_word
 
     return self.y, self.mots
 

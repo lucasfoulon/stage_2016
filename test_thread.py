@@ -32,10 +32,10 @@ from rnn_mots.operations import RNN_mots
 
 #print "Nombre d'iterations : ",sys.argv[1]
 #nbr_it = sys.argv[1]
-nbr_it = 30
+nbr_it = 100
 name_file = 'hello_world.txt'
 
-influ_lettre = 3.0
+influ_lettre = 5.0
 influ_lettre_1 = 1.0
 
 # Création des threads

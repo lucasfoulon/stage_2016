@@ -7,6 +7,8 @@ import numpy as np
 import time
 from threading import Thread
 
+import codecs
+
 print "module RNN_mots importe"
 
 def containAtLeastOneWord(text, words):
@@ -33,12 +35,21 @@ class RNN_lettre(Thread):
     name_file = n_file
 
     # data I/O
-    self.data = open(name_file, 'r').read() # should be simple plain text file
+    self.data = codecs.open(name_file, 'r').read() # should be simple plain text file
+
+
+    #print self.data.decode('string_escape')
+    #TEST DECODE
+    #self.data = self.data.encode('UTF-8')
+
     self.chars = list(set(self.data))
     self.data_size, self.vocab_size = len(self.data), len(self.chars)
     print 'data has %d characters, %d unique.' % (self.data_size, self.vocab_size)
     self.char_to_ix = { ch:i for i,ch in enumerate(self.chars) }
     self.ix_to_char = { i:ch for i,ch in enumerate(self.chars) }
+
+    print self.char_to_ix
+    print self.ix_to_char
 
     # hyperparameters
     self.hidden_size = 100 # size of hidden layer of neurons
@@ -187,12 +198,10 @@ class RNN_lettre(Thread):
                 """
 
           """TEST : si aucun mot ne colle"""
-          
+          """ A TESTER : ne pas additionner mais 'multiplier' la valeur, attention au y negatif"""
           if len(cmpt_word_find) == 0:
             for ix_char in ix_charspe:
               y[ix_char] += 1
-
-          p = np.exp(y) / np.sum(np.exp(y))
 
           """TEST"""
         else:
@@ -236,7 +245,7 @@ class RNN_lettre(Thread):
           y[self.char_to_ix["."]] -= 10
           y[self.char_to_ix["-"]] -= 10"""
 
-          p = np.exp(y) / np.sum(np.exp(y))
+        p = np.exp(y) / np.sum(np.exp(y))
 
 
         #print p
@@ -246,6 +255,7 @@ class RNN_lettre(Thread):
         ix = np.random.choice(range(self.vocab_size), p=p.ravel())
       x = np.zeros((self.vocab_size, 1))
       x[ix] = 1
+      #print "on ajoute : ", ix
       ixes.append(ix)
 
       if rnn_mots != None:
@@ -287,7 +297,7 @@ class RNN_lettre(Thread):
     return prev_word, current_word, context
 
   def prediction(self,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0):
-    sample_ix = self.sample(self.hprev, self.inputs[0], 50, rnn_mots,i_lettre,i_lettre_1)
+    sample_ix = self.sample(self.hprev, self.inputs[0], 500, rnn_mots,i_lettre,i_lettre_1)
     txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
     print '----\n %s \n----' % (txt, )
 
