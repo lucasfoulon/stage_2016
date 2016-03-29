@@ -32,8 +32,8 @@ from rnn_mots.operations import RNN_mots
 
 #print "Nombre d'iterations : ",sys.argv[1]
 #nbr_it = sys.argv[1]
-nbr_it = 100
-name_file = 'hello_world.txt'
+nbr_it = 1000
+name_file = 'input.txt'
 
 influ_lettre = 5.0
 influ_lettre_1 = 1.0

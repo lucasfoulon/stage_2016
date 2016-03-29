@@ -164,8 +164,9 @@ class RNN_lettre(Thread):
 
         """Si le mot courant n'est pas vide"""
         if current_word != "":
-          #print "current_word PAS VIDE !!"  
-          y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
+          #print "current_word PAS VIDE !!" 
+          if t == 0 or context:
+            y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
 
           """TEST"""
           """liste pour compter le nombre de mot commençant par le car"""
@@ -177,8 +178,11 @@ class RNN_lettre(Thread):
           """FIN TEST"""
 
           cmpt_word_find = []
+          #print "mot courant : ", current_word
+          #print "proba mots : ", y_word
           """On parcours la liste de mot predictible"""
           for ix_word,word in enumerate(list_word):
+            """ Si le debut du mot correspond au mot courant alors """
             if word.find(current_word) == 0:
               """ test si le mot n'est pas encore fini d'etre ecrit """
               if len(word) > len(current_word):
@@ -206,11 +210,12 @@ class RNN_lettre(Thread):
           """TEST"""
         else:
           #print "current_word VIDE !!"
-          y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
+          if t == 0 or context:
+            y_word, list_word = rnn_mots.sample_next(rnn_mots.hprev, prev_word, current_word, context)
 
           """liste pour compter le nombre de mot commençant par le car"""
           nbr_mot_start_char = np.zeros((self.vocab_size, 1))
-          """On parcours la liste de mot predictible"""
+          """On parcours la liste de mot predictible commencant par la meme lettre"""
           for word in list_word:
             nbr_mot_start_char[self.char_to_ix[word[0]]] += 1
           #print self.ix_to_char
@@ -218,22 +223,20 @@ class RNN_lettre(Thread):
           """On parcours la liste de mot predictible"""
           for ix_word,word in enumerate(list_word):
 
-            """Ici le if ne sert a rien """
-            if word.find(current_word) == 0:
-              """ test si le mot n'est pas encore fini d'etre ecrit """
-              if len(word) > len(current_word):
-                """On retient tout les mots correspondant au mot courant"""
-                #cmpt_word_find.append(word)
-                """ on augmente le y du ieme caractere du mot 
-                On divise par le nombre d'apparition dans le dictionnaire des mots commencant par la meme RNN_lettre
-                sinon predit trop souvent les mots commencant par la meme lettre"""
-                #y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*1.0)
-                if nbr_mot_start_char[self.char_to_ix[word[0]]] < 2:
-                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1)
-                else:
-                  #print "Val >=2 !!!!!!!!!"
-                  val = nbr_mot_start_char[self.char_to_ix[word[0]]]
-                  y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 / val )
+            """ test si le mot n'est pas encore fini d'etre ecrit """
+            if len(word) > len(current_word):
+              """On retient tout les mots correspondant au mot courant"""
+              #cmpt_word_find.append(word)
+              """ on augmente le y du ieme caractere du mot 
+              On divise par le nombre d'apparition dans le dictionnaire des mots commencant par la meme RNN_lettre
+              sinon predit trop souvent les mots commencant par la meme lettre"""
+              #y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*1.0)
+              if nbr_mot_start_char[self.char_to_ix[word[0]]] < 2:
+                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1)
+              else:
+                #print "Val >=2 !!!!!!!!!"
+                val = nbr_mot_start_char[self.char_to_ix[word[0]]]
+                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 / val )
 
           #print p
           #y[self.char_to_ix[" "]] += 100

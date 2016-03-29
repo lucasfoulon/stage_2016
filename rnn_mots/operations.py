@@ -200,21 +200,14 @@ class RNN_mots(Thread):
     return ixes
 
   def sample_next(self, h, prev_w, current_word=None,context_change=False):
-    """ 
-    L'ERREUR EST PAR ICI??
-    etre sur que apres un espace, prev_word est correct...
-    """
+
 
     """Pour ne pas recalculer a chaque fois"""
-    """
-    TODO
-    Si, il le faut, pour eliminer les mots pas choisit par le niveau 1, mais sans changer le context hprev
-    """
     if context_change:
       self.prev_word = prev_w 
       self.hprev = self.hprev_prec
 
-      print "\nle mot courant est vide, on change de contexte"
+      #print "\nle mot courant est vide, on change de contexte"
 
       #print "mot precedent : ",self.prev_word,
 
@@ -225,8 +218,8 @@ class RNN_mots(Thread):
       else:
         self.seed_ix = 0
 
-    print "* prev word : ", prev_w, " et seed_ix = ",self.seed_ix
-    print "mot eq trouve : ",self.ix_to_mots[self.seed_ix], " et mot en cours : ",current_word
+    #print "* prev word : ", prev_w, " et seed_ix = ",self.seed_ix
+    #print "mot eq trouve : ",self.ix_to_mots[self.seed_ix], " et mot en cours : ",current_word
 
     """TEST"""
     if current_word != "":
@@ -242,24 +235,25 @@ class RNN_mots(Thread):
     p = np.exp(self.y) / np.sum(np.exp(self.y))
     #ix = np.random.choice(range(self.vocab_size), p=p.ravel())
 
-    print p
-    print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+    #print p
+    """print "mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
     p[np.nanargmax(p)] = np.nan
     if len(p) > 1:
       print "2 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
       p[np.nanargmax(p)] = np.nan
     if len(p) > 2:
-      print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]
+      print "3 eme mot plus forte proba : ",self.ix_to_mots[np.nanargmax(p)]"""
 
     """Pour que les y des mots augmente la proba des prochaines lettres"""
     self.y -= np.amin(self.y)
 
-    if not context_change:
-      self.hprev_prec = h
+    #if not context_change:
+    self.hprev_prec = h
 
-    else:
-      print "on ne change pas de context avec mot courant :",current_word
+    """else:
+      print "on ne change pas de context avec mot courant :",current_word"""
 
+    #print self.y
     return self.y, self.mots
 
   def comp_word(self, prev_word):
