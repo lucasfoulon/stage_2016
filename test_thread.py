@@ -35,7 +35,7 @@ from rnn_mots.operations import RNN_mots
 nbr_it = 10000
 name_file = 'petitprince.txt'
 
-influ_lettre = 1.0
+influ_lettre = 5.0
 influ_lettre_1 = 1.0
 
 # Création des threads

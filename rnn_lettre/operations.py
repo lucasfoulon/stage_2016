@@ -183,17 +183,18 @@ class RNN_lettre(Thread):
             word_find = True
 
             """Si le mot courant n'est pas vide"""
-            if current_word != "":
-              """ on augmente le y du ieme caractere du mot """
-              y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre)
+            #if current_word != "":
+              # on augmente le y du ieme caractere du mot
+              #y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre)
 
+            #else:
+            if nbr_mot_start_char[self.char_to_ix[word[0]]] < 2:
+              y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1)
             else:
-              if nbr_mot_start_char[self.char_to_ix[word[0]]] < 2:
-                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1)
-              else:
-                #print "Val >=2 !!!!!!!!!"
-                val = nbr_mot_start_char[self.char_to_ix[word[0]]]
-                y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 / val )
+              #print "Val >=2 !!!!!!!!!"
+              val = nbr_mot_start_char[self.char_to_ix[word[0]]]
+              y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 / val )
+                #y[self.char_to_ix[word[len(current_word)]]] += (y_word[ix_word]*self.influ_lettre_1 )
 
         """TEST : si aucun mot ne colle"""
         """ A TESTER : ne pas additionner mais 'multiplier' la valeur, attention au y negatif"""
