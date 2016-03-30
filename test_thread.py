@@ -32,11 +32,11 @@ from rnn_mots.operations import RNN_mots
 
 #print "Nombre d'iterations : ",sys.argv[1]
 #nbr_it = sys.argv[1]
-nbr_it = 500
-name_file = 'input.txt'
+nbr_it = 10000
+name_file = 'petitprince.txt'
 
-influ_lettre = 5.0
-influ_lettre_1 = 3.0
+influ_lettre = 1.0
+influ_lettre_1 = 1.0
 
 # Création des threads
 #thread_1 = Afficheur("1",10)

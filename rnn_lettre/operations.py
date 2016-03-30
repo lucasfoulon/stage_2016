@@ -48,7 +48,7 @@ class RNN_lettre(Thread):
     self.ix_to_char = { i:ch for i,ch in enumerate(self.chars) }
 
     #print self.char_to_ix
-    print self.ix_to_char
+    #print self.ix_to_char
 
     # hyperparameters
     self.hidden_size = 100 # size of hidden layer of neurons
