@@ -110,26 +110,29 @@ class RNN_mots(Rnn):
       #print "\n***** ",t," ******"
       #print inputs[t],"->",targets[t]
       xs[t] = np.zeros((self.table_x,1)) # encode in 1-of-k representation
-      xs[t][inputs[t]] = 1
+      xs[t] = inputs[t]
       hs[t] = np.tanh(np.dot(self.Wxh, xs[t]) + np.dot(self.Whh, hs[t-1]) + self.bh) # hidden state
       ys[t] = np.dot(self.Why, hs[t]) + self.by # unnormalized log probabilities for next chars
       ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t]))
 
-      if np.argmax(ps[t]) != targets[t]:
-        #print "Pas bon",debug[t],"->",debug[t+1]
+      if targets[t][np.argmax(ps[t])] != 1:
         incorrect += 1.0
-      else:
-        correct += 1.0
-
-      """Affichage taux prediction"""
-      mean_pred.append(np.amax(ps[t]))
-      mean_pred_true.append(ps[t][targets[t]])
-
-      proba_chaque_mot[self.mots_to_ix[debug[t+1]]].append(ps[t][targets[t]])
-      if np.argmax(ps[t]) != targets[t]:
         fausse_place_mot[self.mots_to_ix[debug[t+1]]].append(np.argmax(ps[t]))
       else:
+        correct += 1.0
         bonne_place_mot[self.mots_to_ix[debug[t+1]]].append(np.argmax(ps[t]))
+
+      """Affichage taux prediction"""
+      sum_mean_pred_true = 0.0
+      mean_pred.append(np.amax(ps[t]))
+      for i,b in enumerate(targets[t]):
+        if b == 1:
+          sum_mean_pred_true += ps[t][i]
+      mean_pred_true.append(sum_mean_pred_true)
+
+      for i,b in enumerate(targets[t]):
+        if b == 1:
+          proba_chaque_mot[self.mots_to_ix[debug[t+1]]].append(ps[t][i])
 
     """
     print "moyenne de correct = ", (correct/(correct+incorrect))
@@ -251,9 +254,9 @@ class RNN_mots(Rnn):
 
     ptest = np.exp(z) / np.sum(np.exp(z))
 
-    print self.table_hach
+    """print self.table_hach
     for i,pp in enumerate(ptest):
-      print self.ix_to_mots[i],pp
+      print self.ix_to_mots[i],pp"""
 
     return h,z,id_mot
 
@@ -292,12 +295,11 @@ class RNN_mots(Rnn):
   def prediction(self):
     self.hprev = np.zeros((self.hidden_size,1))
     sample_ix = self.sample(self.hprev, self.inputs[0], 100)
-    """for ana in sample_ix:
-      print ana
-      print self.table_hach[ana],
-      print " "
+    for ana in sample_ix:
+      print ana,
+      #print self.table_hach[ana],
+      #print " "
     print " "
-    """
 
 
   def pertes(self):
@@ -327,7 +329,10 @@ class RNN_mots(Rnn):
   def affichTableHach(self):
 
     for i,case in enumerate(self.table_hach):
-      print "case",i,"=",len(case),"elements"
+      print "case",i,"=",len(case),"elements ->", 
+      for ele in case:
+        print ele,
+      print " "
 
     if self.clone_exist:
       print "\nSon clone"
@@ -379,9 +384,11 @@ class RNN_mots(Rnn):
         print "ite :",m
 
       self.hprev, mean_pred, mean_pred_true, proba_chaque_mot, fausse_place_mot, bonne_place_mot = self.funnyClass(self.inputs, targets, self.hprev, debug, proba_chaque_mot, fausse_place_mot, bonne_place_mot)
-      self.trace_proba_no_correct.addToMean(mean_pred,mean_pred_true)
 
-      if m % 10 == 0:
+      if m % 10 == 0 and hasattr(self, 'self.trace_proba_no_correct'):
+        self.trace_proba_no_correct.addToMean(mean_pred,mean_pred_true)
+
+      if m % 10 == 0 and hasattr(self, 'self.trace_proba_no_correct'):
         self.trace_proba_no_correct.writeValue(m+(n_appel/5))
 
       p += self.seq_length
@@ -424,6 +431,17 @@ class RNN_mots(Rnn):
     self.classifieur.majTable()
     self.table_hach = self.classifieur.getTable()
     self.mots_to_ix_tab = self.classifieur.getMotToNumCase()
+
+    self.ix_to_io = []
+    for mot in self.mots:
+      input_mot = np.zeros((self.table_x, 1))
+      num = self.mots_to_ix_tab[mot]
+      input_mot[num] = 1
+      self.ix_to_io.append(input_mot)
+
+    self.data_mots = []
+    for m in self.data_mots_origin:
+      self.data_mots.append(self.ix_to_io[self.mots_to_ix[m]])
 
   def closeFile(self):
 

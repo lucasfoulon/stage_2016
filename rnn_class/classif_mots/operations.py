@@ -31,25 +31,26 @@ class Classif_mots():
   def majTable(self):
     for cl_mot in self.classif_mot:
       nvll_pos = np.argmax(self.classif_mot[cl_mot])
-      """Modif 1"""
-      #print cl_mot
-      #print self.table[self.mots_to_num_case[cl_mot]]
-      """retrait de l'ancienne case"""
-      if cl_mot in self.table[self.mots_to_num_case[cl_mot]]: self.table[self.mots_to_num_case[cl_mot]].remove(cl_mot)
-      #print self.table[self.mots_to_num_case[cl_mot]]
-      """ajout dans la nouvelle case"""
-      if cl_mot not in self.table[nvll_pos] : self.table[nvll_pos].append(cl_mot)
-      """Modif 2"""
-      self.mots_to_num_case[cl_mot] = nvll_pos
-      #print self.table
+      if nvll_pos != self.mots_to_num_case[cl_mot]:
+        """Modif 1"""
+        #print cl_mot
+        #print self.table[self.mots_to_num_case[cl_mot]]
+        """retrait de l'ancienne case"""
+        if cl_mot in self.table[self.mots_to_num_case[cl_mot]]: self.table[self.mots_to_num_case[cl_mot]].remove(cl_mot)
+        #print self.table[self.mots_to_num_case[cl_mot]]
+        """ajout dans la nouvelle case"""
+        if cl_mot not in self.table[nvll_pos] : self.table[nvll_pos].append(cl_mot)
+        """Modif 2"""
+        self.mots_to_num_case[cl_mot] = nvll_pos
+        #print self.table
 
   def modifCaseMot(self,mot,mean,mean_pred_true,case_depart,cases_arrivees):
     #print "A TESTER"
     """
     On additionne toujours les valeurs calculees
     """
-    print "\n",mot
-    print self.classif_mot[mot]
+    #print "\n",mot
+    #print self.classif_mot[mot]
 
     sum_arrivee = 0
     for indic in cases_arrivees:
@@ -74,7 +75,7 @@ class Classif_mots():
         ratio_taille = (self.nbr_mot_total - taille_case_arrivee) / (self.nbr_mot_total)
         self.classif_mot[mot][indic] += ( float(cases_arrivees[indic]) / sum_arrivee )*mean_pred_true
 
-    print self.classif_mot[mot]
+    #print self.classif_mot[mot]
 
 
   def modifCaseMotOld(self,mot,mean,mean_pred_true,case_depart,cases_arrivees):
@@ -97,8 +98,8 @@ class Classif_mots():
 
     sum_arrivee = float(sum_arrivee)
 
-    print "\n",mot
-    print self.classif_mot[mot]
+    #print "\n",mot
+    #print self.classif_mot[mot]
 
     if not case_depart:
       print "case depart is empty"
@@ -106,10 +107,10 @@ class Classif_mots():
       #self.classif_mot[mot][self.mots_to_num_case[mot]] -= mean_pred_true
       for indic in cases_arrivees:
         taille_case_arrivee = len(self.table[indic])
-        print "taille case arrivee",taille_case_arrivee
+        #print "taille case arrivee",taille_case_arrivee
         ratio_taille = (self.nbr_mot_total - taille_case_arrivee) / (self.nbr_mot_total)
         #ratio_taille = np.exp(self.nbr_mot_total - taille_case_arrivee) / np.exp(self.nbr_mot_total)
-        print "ratio : ",ratio_taille
+        #print "ratio : ",ratio_taille
         self.classif_mot[mot][indic] = ( float(cases_arrivees[indic]) / sum_arrivee )*mean_pred_true*ratio_taille
 
     else:
