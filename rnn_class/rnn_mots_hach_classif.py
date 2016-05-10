@@ -149,26 +149,18 @@ class RNN_mots(Rnn):
     for i,b in enumerate(seed_ix):
       if b == 1:
         x[i] = 1
-
     ixes = []
     liste_proba = []
 
     for t in xrange(n):
-
-      #print "\n*****",t,"*****"
       h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
       y = np.dot(self.Why, h) + self.by
       p = np.exp(y) / np.sum(np.exp(y))
 
       #print p
       ix = np.random.choice(range(self.table_x), p=p.ravel())
-      """TEST"""
-      #ix = np.argmax(p)
-      #ana[1]*(self.table_x)+ana[0]
-
-      """debug"""
-      #print self.ix_to_mots[ix],"(",ix,")","proba:",p[ix]
       liste_proba.append(p[ix])
+
       if ix >= len(self.mots):
         print "DEPASSEMENT !!!",ix
 
@@ -178,65 +170,92 @@ class RNN_mots(Rnn):
 
       ixes.append(ix)
 
-    #print "moyenne pred only:",np.mean(liste_proba)
-
     return ixes
 
-  def sample_next(self, h, prev_w, current_word=None,context_change=False):
+  def sample_letter(self,current_word=None,z=None):
 
-    #print prev_w
-    #print current_word
-    #print context_change
+    if z is None:
+      print "Z IS NULL"
+      z = np.zeros((self.table_x*self.table_y, 1))
 
-    self.prev_word = prev_w
-    #self.hprev = self.hprev_prec
+    p = np.exp(z) / np.sum(np.exp(z))
 
-    #print "\nle mot courant est vide, on change de contexte"
+    proba_lettre = { ch:np.amin(z) for i,ch in enumerate(self.chars) if i not in self.ix_charspe }
 
-    #print "mot precedent : ",self.prev_word,
+    val_max = np.amin(z)
+    lettre_max = " "
+    mot_max = " "
+    position_max = -1
 
-    if self.prev_word in self.mots:
-        self.temp_id_mot = self.mots_to_ix[self.prev_word]
-    elif self.prev_word != "":
-      temp_id_mot = self.comp_word(self.prev_word)
-    else:
-      temp_id_mot = 0
+    for i,p in enumerate(z):
+      if len(current_word) < len(self.mots[i]) and self.mots[i].find(current_word) == 0:
+        #print self.mots[i][len(current_word)]
+        if self.char_to_ix[ self.mots[i][len(current_word)] ] not in self.ix_charspe:
+          #print self.mots[i][len(current_word)]
+          if p > proba_lettre[ self.mots[i][len(current_word)] ]:
+            proba_lettre[ self.mots[i][len(current_word)] ] = p
 
-    #print "temp_id_mot",temp_id_mot
-    #print "mot le plus similaire",self.ix_to_mots[temp_id_mot]
-    self.seed_ix = self.mots_to_ix_tab[self.ix_to_mots[temp_id_mot]]
-    #print "case",self.seed_ix
+          if p > val_max:
+            val_max = p
+            lettre_max = self.mots[i][len(current_word)]
+            mot_max = self.mots[i]
+            position_max = i
 
-    x = np.zeros((self.table_x, 1))
-    x[self.seed_ix] = 1
-    #print "x = ",x
-    ixes = []
-    h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, self.hprev_prec) + self.bh)
-    self.y = np.dot(self.Why, h) + self.by
-    p = np.exp(self.y) / np.sum(np.exp(self.y))
+    z_copie = np.copy(z)
+    ptemp = np.exp(z) / np.sum(np.exp(z))
 
-    self.hprev_prec = h
+    if position_max != -1:
+      position_val = self.findPosition(val_max,z_copie)
+      for lettre in proba_lettre:
+        proba_lettre[lettre] /= position_val
 
-    #print self.y
-    #print p
-    proba_send, mots_send = [], []
+    print "prédit:",self.mots[np.argmax(ptemp)],np.amax(ptemp)
+    #if val_max > np.amin(z):
+    print "amin(z)",np.amin(z)
+    if position_max != -1:
+      print "lettre-mot predit",lettre_max,val_max/position_val
+      print "mot max predit",mot_max
+      print "proba_mot_max",ptemp[position_max]
 
-    i = 0
-    for case in self.table_hach:
-      for mot in case:
-        #print mot
-        proba_send.append(self.y[i])
-        mots_send.append(mot)
-      i += 1
+    #print "predit lettre-mot",np.argmax(proba_lettre),np.amax(proba_lettre)
 
-    """for i,p in enumerate(proba_send):
-      print mots_send[i],p
+    #z -= np.amin(z)
+    """if lettre_max == " ":
+      print proba_lettre"""
 
-    print self.table_hach"""
+    return proba_lettre,ptemp[position_max],z
 
-    #proba_send -= np.amin(proba_send)
+  def changeContext(self,h,prev_w,id_mot):
 
-    return proba_send,mots_send
+    print "CONTEXT CHANGE"
+
+    if h is None:
+      h = np.zeros((self.hidden_size,1))
+
+    if prev_w in self.mots and prev_w != None:
+      id_mot = self.mots_to_ix[prev_w]
+    elif prev_w != "" and prev_w != None:
+      print prev_w,"naparait pas dans la liste on cherche ..."
+      id_mot = self.comp_word(prev_w)
+
+    print "mot equ:",self.ix_to_mots[id_mot]
+    x = self.ix_to_io[id_mot]
+    h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
+    y = np.dot(self.Why, h) + self.by
+
+    z = np.zeros((self.vocab_size, 1))
+
+    for ix,ytemp in enumerate(y):
+      for mot in self.table_hach[ix]:
+        z[self.mots_to_ix[mot]] = ytemp
+
+    ptest = np.exp(z) / np.sum(np.exp(z))
+
+    print self.table_hach
+    for i,pp in enumerate(ptest):
+      print self.ix_to_mots[i],pp
+
+    return h,z,id_mot
 
 
   def comp_word(self, prev_word):
