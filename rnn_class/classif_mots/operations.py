@@ -6,11 +6,13 @@ import numpy as np
 
 class Classif_mots():
 
-  def __init__(self,mots_to_num_case,table,nbr_case):
+  def __init__(self,mots_to_num_case,table,nbr_case,nbr_elt):
     print "insere table"
     self.mots_to_num_case = mots_to_num_case
     self.table = table
     self.nbr_case = nbr_case
+    self.nbr_elt = nbr_elt
+    self.moy_nbr_elt = float(nbr_elt) / float(nbr_case)
 
     self.nbr_mot_total = 0.0
     for case in self.table:
@@ -63,19 +65,38 @@ class Classif_mots():
 
     if not case_depart:
       for indic in cases_arrivees:
+        #test
+        #rat = 1.0 / np.exp(float(len(self.table[indic])) - self.moy_nbr_elt)
+        rat = np.exp( - (float(len(self.table[indic])) - self.moy_nbr_elt) )
+
         taille_case_arrivee = len(self.table[indic])
         ratio_taille = (self.nbr_mot_total - taille_case_arrivee) / (self.nbr_mot_total)
-        self.classif_mot[mot][indic] += ( float(cases_arrivees[indic]) / sum_arrivee )*mean_pred_true
+        self.classif_mot[mot][indic] += ( float(cases_arrivees[indic]) / sum_arrivee )*rat
     else:
       nbr_depart = float(case_depart[self.mots_to_num_case[mot]])
       sum_arrivee += nbr_depart
-      #self.classif_mot[mot][self.mots_to_num_case[mot]] += ( float(nbr_depart) / sum_arrivee )*mean_pred_true
+
+      #test
+      #rat = 1.0 / np.exp(float(len(self.table[self.mots_to_num_case[mot]])) - self.moy_nbr_elt)
+      rat = np.exp( - (float(len(self.table[self.mots_to_num_case[mot]])) - self.moy_nbr_elt) )
+      """print "\nRATIO:",rat
+      print float(len(self.table[self.mots_to_num_case[mot]]))
+      print self.moy_nbr_elt
+      print -( float(len(self.table[self.mots_to_num_case[mot]]))- self.moy_nbr_elt)
+      print np.exp( - (float(len(self.table[self.mots_to_num_case[mot]]))- self.moy_nbr_elt ) )"""
+
+      #self.classif_mot[mot][self.mots_to_num_case[mot]] += ( float(nbr_depart) / sum_arrivee )*rat / (len(cases_arrivees))
       for indic in cases_arrivees:
+        #test
+        rat = np.exp( - (float(len(self.table[indic])) - self.moy_nbr_elt) )
+
         taille_case_arrivee = len(self.table[indic])
         ratio_taille = (self.nbr_mot_total - taille_case_arrivee) / (self.nbr_mot_total)
-        self.classif_mot[mot][indic] += ( float(cases_arrivees[indic]) / sum_arrivee )*mean_pred_true
+        #self.classif_mot[mot][indic] += ( float(cases_arrivees[indic]) / sum_arrivee )*mean_pred_true*rat
+        self.classif_mot[mot][indic] += ( float(cases_arrivees[indic]) / sum_arrivee )*rat
 
     #print self.classif_mot[mot]
+    self.majTable()
 
 
   def modifCaseMotOld(self,mot,mean,mean_pred_true,case_depart,cases_arrivees):
@@ -162,5 +183,8 @@ class Classif_mots():
 
   def getMotToNumCase(self):
     return self.mots_to_num_case
+
+  def getClassifMot(self):
+    return self.classif_mot
 
 print "class classif_mots importe"

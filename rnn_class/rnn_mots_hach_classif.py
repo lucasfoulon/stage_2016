@@ -16,6 +16,8 @@ from trace_proba.operations import Trace_proba
 #HERITAGE
 from rnn_mots import RNN_mots as Rnn
 
+from regex import printProgress
+
 from functions import replacePonctuation, flatten, find_pui, dim_table
 
 import copy
@@ -68,7 +70,7 @@ class RNN_mots(Rnn):
       input_mot[num] = 1
       self.ix_to_io.append(input_mot)
 
-    self.classifieur = Classif_mots(self.mots_to_ix_tab,self.table_hach,inc)
+    self.classifieur = Classif_mots(self.mots_to_ix_tab,self.table_hach,inc,len(self.mots))
 
     for m in self.data_mots_origin:
       self.data_mots.append(self.ix_to_io[self.mots_to_ix[m]])
@@ -178,7 +180,7 @@ class RNN_mots(Rnn):
   def sample_letter(self,current_word=None,z=None):
 
     if z is None:
-      print "Z IS NULL"
+      #print "Z IS NULL"
       z = np.zeros((self.table_x*self.table_y, 1))
 
     p = np.exp(z) / np.sum(np.exp(z))
@@ -212,13 +214,14 @@ class RNN_mots(Rnn):
       for lettre in proba_lettre:
         proba_lettre[lettre] /= position_val
 
-    print "prédit:",self.mots[np.argmax(ptemp)],np.amax(ptemp)
+    #print "prédit:",self.mots[np.argmax(ptemp)],np.amax(ptemp)
     #if val_max > np.amin(z):
-    print "amin(z)",np.amin(z)
-    if position_max != -1:
+    #print "amin(z)",np.amin(z)
+    """if position_max != -1:
       print "lettre-mot predit",lettre_max,val_max/position_val
       print "mot max predit",mot_max
       print "proba_mot_max",ptemp[position_max]
+    """
 
     #print "predit lettre-mot",np.argmax(proba_lettre),np.amax(proba_lettre)
 
@@ -230,7 +233,7 @@ class RNN_mots(Rnn):
 
   def changeContext(self,h,prev_w,id_mot):
 
-    print "CONTEXT CHANGE"
+    #print "CONTEXT CHANGE"
 
     if h is None:
       h = np.zeros((self.hidden_size,1))
@@ -238,10 +241,10 @@ class RNN_mots(Rnn):
     if prev_w in self.mots and prev_w != None:
       id_mot = self.mots_to_ix[prev_w]
     elif prev_w != "" and prev_w != None:
-      print prev_w,"naparait pas dans la liste on cherche ..."
+      #print prev_w,"naparait pas dans la liste on cherche ..."
       id_mot = self.comp_word(prev_w)
 
-    print "mot equ:",self.ix_to_mots[id_mot]
+    #print "mot equ:",self.ix_to_mots[id_mot]
     x = self.ix_to_io[id_mot]
     h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
     y = np.dot(self.Why, h) + self.by
@@ -364,6 +367,8 @@ class RNN_mots(Rnn):
       fausse_place_mot[i] = []
       bonne_place_mot[i] = []
 
+    printProgress(0, self.nbr_it, prefix = 'Classif mot:', suffix = 'fini', barLength = 50)
+
     while m < (self.nbr_it):
 
       """TEST"""
@@ -380,9 +385,6 @@ class RNN_mots(Rnn):
       self.inputs =  self.data_mots[p:p+self.seq_length]
       targets = self.data_mots[p+1:p+self.seq_length+1]
 
-      if m % 1000 == 0:
-        print "ite :",m
-
       self.hprev, mean_pred, mean_pred_true, proba_chaque_mot, fausse_place_mot, bonne_place_mot = self.funnyClass(self.inputs, targets, self.hprev, debug, proba_chaque_mot, fausse_place_mot, bonne_place_mot)
 
       if m % 10 == 0 and hasattr(self, 'self.trace_proba_no_correct'):
@@ -393,6 +395,7 @@ class RNN_mots(Rnn):
 
       p += self.seq_length
       m += 1 # iteration counter 
+      printProgress(m, self.nbr_it, prefix = 'Classif mot:', suffix = 'de '+str(self.nbr_it), barLength = 50)
 
     mean_chaque_mot = { self.ix_to_mots[i]:np.mean(proba_chaque_mot[i]) for i,ligne in enumerate(proba_chaque_mot) }
     name_min = ""

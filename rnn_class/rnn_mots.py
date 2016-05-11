@@ -1,9 +1,12 @@
+# -*- coding: UTF-8 -*-
 import numpy as np
 import time
 from datetime import datetime
 """time ans datetime??"""
 import cPickle
 import os
+
+from regex import printProgress
 
 from rnn_lettre import RNN_lettre
 from functions import replacePonctuation, flatten
@@ -33,7 +36,7 @@ class RNN_mots(RNN_lettre):
 					li.remove(charspe)
 			while '' in li:
 				li.remove('')
-			print li
+			#print li
 			# print li
 			# totalisation des mots :
 			m = m + len(li)
@@ -75,6 +78,10 @@ class RNN_mots(RNN_lettre):
 		hs[-1] = np.copy(hprev)
 		loss = 0
 
+		#pour prediction moyenne
+		mean_pred = []
+		mean_pred_true = []
+
 		# forward pass
 		for t in xrange(len(inputs)):
 
@@ -87,6 +94,15 @@ class RNN_mots(RNN_lettre):
 			for i,x in enumerate(targets[t]):
 				if x == 1:
 					loss += -np.log(ps[t][i])
+
+			"""Affichage taux prediction"""
+			sum_mean_pred_true = 0.0
+			mean_pred.append(np.amax(ps[t]))
+			for i,b in enumerate(targets[t]):
+				if b == 1:
+					sum_mean_pred_true += ps[t][i]
+			mean_pred_true.append(sum_mean_pred_true)
+
 		# backward pass: compute gradients going backwards
 		dWxh, dWhh, dWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
 		dbh, dby = np.zeros_like(self.bh), np.zeros_like(self.by)
@@ -108,7 +124,7 @@ class RNN_mots(RNN_lettre):
 			dhnext = np.dot(self.Whh.T, dhraw)
 		for dparam in [dWxh, dWhh, dWhy, dbh, dby]:
 			np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
-		return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1]
+		return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1], np.mean(mean_pred), np.mean(mean_pred_true)
 
 	def findPosition(self,val_max,z):
 		position = 1
@@ -123,25 +139,59 @@ class RNN_mots(RNN_lettre):
 	def reinit_hprev(self):
 		self.hprev = np.zeros((self.hidden_size,1))
 
-	def run(self):
-		n, p = 0, 0
-		mWxh, mWhh, mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
-		mbh, mby = np.zeros_like(self.bh), np.zeros_like(self.by) # memory variables for Adagrad
+	def openTraceProba(self,nb_file):
 
 		montemps=time.time()
+		now = datetime.now()
+
+		name_directory = "stat_proba/"
+
+		if not os.path.exists(""+name_directory):
+			os.makedirs(""+name_directory)
+
+		date_directory = ""+str(now.month)+"_"+str(now.day)+"_"+str(now.hour)+"_"+str(now.minute)
+
+		if not os.path.exists(""+name_directory+"/"+date_directory):
+			os.makedirs(""+name_directory+"/"+date_directory)
+
+		name_file_proba = ""+str(self.nbr_it)+"-"+str(self.hidden_size)+"-"+self.name_file.split('.txt')[0]+".dat"
+		self.trace_proba = Trace_proba(name_directory,date_directory ,name_file_proba)
+
+		if nb_file == 2:
+			name_file_proba = ""+str(self.nbr_it)+"-"+str(self.hidden_size)+"-"+self.name_file.split('.txt')[0]+".no_corrected.dat"
+			self.trace_proba_no_correct = Trace_proba(name_directory,date_file_proba,name_file_proba)
+
+	def run(self, mWxh=None, mWhh=None, mWhy=None, mbh=None, mby=None, n_appel=0, openTraceProba=0):
+		if openTraceProba > 1:
+			self.openTraceProba(openTraceProba)
+		self.learn(mWxh, mWhh, mWhy, mbh, mby, n_appel)
+
+	def learn(self,mWxh=None, mWhh=None, mWhy=None, mbh=None, mby=None, n_appel=0):
+		n, p = 0, 0
+		if mWxh is None or mWhh is None or mWhy is None:
+			mWxh, mWhh, mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
+		if mbh is None or mby is None:
+			mbh, mby = np.zeros_like(self.bh), np.zeros_like(self.by) # memory variables for Adagrad
+
+		montemps=time.time()
+
+		printProgress(0, self.nbr_it, prefix = 'Niv mot:', suffix = 'fini', barLength = 50)
 
 		while n < self.nbr_it:
 			# prepare inputs (we're sweeping from left to right in steps seq_length long)
 			if p+self.seq_length+1 >= len(self.data_mots) or n == 0:
 				self.hprev = np.zeros((self.hidden_size,1)) # reset RNN memory
 				p = 0 # go from start of data
+
 			self.inputs =  self.data_mots[p:p+self.seq_length]
 			targets = self.data_mots[p+1:p+self.seq_length+1]
 
 			# forward seq_length characters through the net and fetch gradient
-
-			loss, dWxh, dWhh, dWhy, dbh, dby, self.hprev = self.lossFun(self.inputs, targets, self.hprev)
+			loss, dWxh, dWhh, dWhy, dbh, dby, self.hprev, mean_pred, mean_pred_true = self.lossFun(self.inputs, targets, self.hprev)
 			self.smooth_loss = self.smooth_loss * 0.999 + loss * 0.001
+
+			if hasattr(self, 'self.trace_proba'):
+				self.trace_proba.addToMean(mean_pred,mean_pred_true)
 
 			# perform parameter update with Adagrad
 			for param, dparam, mem in zip([self.Wxh, self.Whh, self.Why, self.bh, self.by], 
@@ -150,8 +200,12 @@ class RNN_mots(RNN_lettre):
 				mem += dparam * dparam
 				param += -self.learning_rate * dparam / np.sqrt(mem + 1e-8) # adagrad update
 
+			if n % 100 == 0 and hasattr(self, 'self.trace_proba'):
+				self.trace_proba.writeValue(n+n_appel)
+
 			p += self.seq_length # move data pointer
-			n += 1 # iteration counter 
+			n += 1 # iteration counter
+			printProgress(n, self.nbr_it, prefix = 'Niv mot:', suffix = 'de '+str(self.nbr_it), barLength = 50)
 
 		t=time.time()-montemps
 		tiTuple=time.gmtime(t)
@@ -172,7 +226,7 @@ class RNN_mots(RNN_lettre):
 		if not os.path.exists(""+name_directory+"/"+date_directory):
 			os.makedirs(""+name_directory+"/"+date_directory)
 
-		name_file = type_rnn+"-"+str(self.nbr_it)+"-"+self.name_file
+		name_file = type_rnn+"-"+str(self.nbr_it)+"-"+self.name_file.split('.txt')[0]
 
 		if not os.path.exists(""+name_directory+"/"+date_directory+"/"+name_file):
 			os.makedirs(""+name_directory+"/"+date_directory+"/"+name_file)

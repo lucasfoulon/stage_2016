@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: UTF-8 -*-
 """
 Minimal character-level Vanilla RNN model. Written by Andrej Karpathy (@karpathy)
 BSD License
@@ -10,6 +10,8 @@ from threading import Thread
 from datetime import datetime
 import cPickle
 import os
+
+from regex import printProgress
 
 from functions import containAtLeastOneWord,isAtLeastOneWord
 
@@ -132,11 +134,11 @@ class RNN_lettre(Thread):
       Appelle au deuxieme niveau du reseau
       """
       if rnn_mots != None and np.argmax(p) not in self.ix_charspe and np.argmax(p) > 0.8:
-        print "\nchar predit",self.ix_to_char[np.argmax(p)], np.amax(p)
+        #print "\nchar predit",self.ix_to_char[np.argmax(p)], np.amax(p)
 
-        print "len mot courant",len(current_word),current_word
+        #print "len mot courant",len(current_word),current_word
 
-        print "mot precedent:",prev_word
+        #print "mot precedent:",prev_word
 
         if context:
           h_mot,z_mot,id_mot = rnn_mots.changeContext(h_mot,prev_word,id_mot)
@@ -156,7 +158,7 @@ class RNN_lettre(Thread):
       ixes.append(ix)
 
       if rnn_mots != None:
-        print "lettre choisit:",self.ix_to_char[ix]
+        #print "lettre choisit:",self.ix_to_char[ix]
         prev_word, current_word, context = self.list_last_word(prev_word, current_word, ix, ixes, context)
 
     """WARNING : Pour ne pas influencer les prochaines predictions"""
@@ -220,6 +222,7 @@ class RNN_lettre(Thread):
     sample_ix = self.sample(self.hprev, self.inputs[0], 200, rnn_mots,i_lettre,i_lettre_1,ecrire_fichier)
     txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
     print '----\n %s \n----' % (txt, )
+    return txt
 
   def pertes(self):
     print 'loss: %f' % (self.smooth_loss)
@@ -236,6 +239,8 @@ class RNN_lettre(Thread):
     n, p = 0, 0
 
     # montemps=time.time()
+
+    printProgress(0, self.nbr_it, prefix = 'Niv lettre:', suffix = 'fini', barLength = 50)
 
     while n < self.nbr_it:
       # prepare inputs (we're sweeping from left to right in steps seq_length long)
@@ -273,6 +278,7 @@ class RNN_lettre(Thread):
 
       p += self.seq_length + to_end# move data pointer
       n += 1 # iteration counter 
+      printProgress(n, self.nbr_it, prefix = 'Niv lettre:', suffix = 'de '+str(self.nbr_it), barLength = 50)
 
     # t=time.time()-montemps
     # tiTuple=time.gmtime(t)
