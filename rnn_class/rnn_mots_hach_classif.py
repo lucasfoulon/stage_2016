@@ -38,30 +38,24 @@ class RNN_mots(Rnn):
     self.table_x = self.table_square_size
     self.table_y = self.table_square_size
 
-    self.table_hach = []
-    tab_temp = []
-    inc = 0
-    for pos,mot in enumerate(self.mots):
-      num_case = pos % self.table_x
-      #print num_case
-      tab_temp.append(mot)
-      if num_case == (self.table_x - 1):
-        self.table_hach.append(tab_temp)
-        tab_temp = []
-        inc +=1
-
-    if num_case != (self.table_x - 1):
-      self.table_hach.append(tab_temp)
-      inc +=1
-
-    print "nbr de case : ",inc
-    self.table_x = inc
+    self.table_x = int(ceil(len(self.mots)/float(self.table_y)))
+    print "nbr de case : ",self.table_x
     print "nbr elt max par case :",self.table_y
 
     #print self.table_hach
     #print " "
 
     self.mots_to_ix_tab = { ch:(i/self.table_y) for i,ch in enumerate(self.mots) }
+
+    self.classifieur = Classif_mots(self.table_x,
+      len(self.mots),
+      self.table_y,
+      self.data_mots_origin,
+      self.mots_to_ix,
+      self.ix_to_mots)
+
+    self.table_hach = self.classifieur.getTable()
+    self.mots_to_ix_tab = self.classifieur.getMotToNumCase()
 
     self.ix_to_io = []
     for mot in self.mots:
@@ -70,8 +64,7 @@ class RNN_mots(Rnn):
       input_mot[num] = 1
       self.ix_to_io.append(input_mot)
 
-    self.classifieur = Classif_mots(self.mots_to_ix_tab,self.table_hach,inc,len(self.mots))
-
+    self.data_mots = []
     for m in self.data_mots_origin:
       self.data_mots.append(self.ix_to_io[self.mots_to_ix[m]])
 
@@ -425,6 +418,8 @@ class RNN_mots(Rnn):
 
     #print "min :",name_min,val_min
     #print "pure bon:",cmpt_bon
+    print "mean pred true",mean_pred_true
+    self.last_mean_pred_true = mean_pred_true
 
     self.updateClassifieur()
 
@@ -432,6 +427,7 @@ class RNN_mots(Rnn):
   def updateClassifieur(self):
 
     self.classifieur.majTable()
+
     self.table_hach = self.classifieur.getTable()
     self.mots_to_ix_tab = self.classifieur.getMotToNumCase()
 
