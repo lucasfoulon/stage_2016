@@ -7,12 +7,18 @@ from copy import deepcopy
 
 class Classif_mots():
 
-  def __init__(self,nbr_case,nbr_elt,nbr_elt_case,text,mots_to_ix,ix_to_mots):
+  def __init__(self,nbr_case,nbr_elt,nbr_elt_case,text,mots_to_ix,ix_to_mots,mots):
+    
     print "insere table"
+    self.mots = mots
 
     #self.table = table
-    self.parcoursTexteClassif(text,mots_to_ix,ix_to_mots,nbr_case,nbr_elt_case)
+    #self.parcoursTexteClassif(text,mots_to_ix,ix_to_mots,nbr_case,nbr_elt_case)
+    self.sansPreClassif(nbr_elt_case)
 
+    print self.table
+
+    self.nbr_elt_case = nbr_elt_case
     self.nbr_case = nbr_case
     self.nbr_elt = nbr_elt
     self.moy_nbr_elt = float(nbr_elt) / float(nbr_case)
@@ -46,7 +52,24 @@ class Classif_mots():
         self.mots_to_num_case[cl_mot] = nvll_pos
         #print self.table
 
-  def modifCaseMot(self,mot,mean,mean_pred_true,case_depart,cases_arrivees):
+  def modifCaseMot(self,mot,mean,mean_pred_true,case_depart,cases_arrivees,pred_case):
+    #print "A TESTER"
+    """
+    On additionne toujours les valeurs calculees
+    """
+    sum_pred = 0.0
+    for i,case in enumerate(pred_case):
+      sum_pred += pred_case[i]
+
+    for i,case in enumerate(pred_case):
+      if case != self.mots_to_num_case[mot]:
+        rat = np.exp( - (float(len(self.table[i])) - self.moy_nbr_elt) )
+        #rat = ( float(self.nbr_elt_case) - (float(len(self.table[i])) ) / float(self.nbr_elt_case) )
+        self.classif_mot[mot][i] += pred_case[i]/sum_pred*rat
+    
+    self.majTable()
+
+  def modifCaseMotOld2(self,mot,mean,mean_pred_true,case_depart,cases_arrivees):
     #print "A TESTER"
     """
     On additionne toujours les valeurs calculees
@@ -102,6 +125,39 @@ class Classif_mots():
 
     #print self.classif_mot[mot]
     self.majTable()
+
+  def sansPreClassif(self,nbr_case):
+
+    self.table = []
+    tab_temp = []
+    inc = 0
+    for pos,mot in enumerate(self.mots):
+      num_case = pos % nbr_case
+      #print num_case
+      tab_temp.append(mot)
+      if num_case == (nbr_case- 1):
+        self.table.append(tab_temp)
+        tab_temp = []
+        inc +=1
+
+    if num_case != (nbr_case - 1):
+      self.table.append(tab_temp)
+      inc +=1
+
+    """
+    self.table = []
+    for i in range(nbr_case):
+      self.table.append([])
+    inc = 0
+    for pos,mot in enumerate(self.mots):
+      num_case = pos % nbr_case
+      print num_case
+      self.table[num_case].append(mot)
+
+    if num_case != (nbr_case - 1):
+      self.table.append(tab_temp)
+      inc +=1
+    """
 
   def parcoursTexteClassif(self,text,mots_to_ix,ix_to_mots,nbr_case,nbr_elt):
 

@@ -14,7 +14,9 @@ from functions import replacePonctuation, flatten
 print "module RNN_mots importe"
 
 class RNN_mots(RNN_lettre): 
+
 	def __init__(self,nbr,folder_file,n_file):
+
 		RNN_lettre.__init__(self,nbr,folder_file,n_file)
 
 		self.vocab_lettre_size = self.vocab_size
@@ -110,10 +112,15 @@ class RNN_mots(RNN_lettre):
 
 		for t in reversed(xrange(len(inputs))):
 
+			#print " "
+			#print ps[t]
+
 			dy = np.copy(ps[t])
 			indexes = [i for i,x in enumerate(targets[t]) if x == 1]
 			for ind in indexes:
 				dy[ind] -= (1.00 / float(len(indexes)))
+
+			#print dy
 			dWhy += np.dot(dy, hs[t].T)
 			dby += dy
 			dh = np.dot(self.Why.T, dy) + dhnext # backprop into h
