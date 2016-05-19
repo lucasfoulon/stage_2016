@@ -90,7 +90,7 @@ class RNN_mots(Rnn):
   def lossFun(self, inputs, targets, hprev):
     return Rnn.lossFun(self, inputs, targets, hprev, self.table_x)
 
-  def funnyClass(self, inputs, targets, hprev, debug, proba_chaque_mot, fausse_place_mot, bonne_place_mot, mean_proba_case, place_mot):
+  def funnyClass(self, inputs, targets, hprev, debug, place_mot):
     """
     Calcul les taux d'erreur pour la classification
     """
@@ -99,35 +99,22 @@ class RNN_mots(Rnn):
 
     mean_pred = []
     mean_pred_true = []
-    correct = 0.0
-    incorrect = 0.0
 
-    cases_max = []
+    erreur_mot = {}
+    for i in range(len(self.ix_to_mots)):
+      erreur_mot[i] = []
 
     for t in xrange(len(inputs)):
       #print "\n***** ",t," ******"
       #print inputs[t],"->",targets[t]
       xs[t] = np.zeros((self.table_x,1)) # encode in 1-of-k representation
       xs[t] = inputs[t]
-      #print inputs[t]
       hs[t] = np.tanh(np.dot(self.Wxh, xs[t]) + np.dot(self.Whh, hs[t-1]) + self.bh) # hidden state
       ys[t] = np.dot(self.Why, hs[t]) + self.by # unnormalized log probabilities for next chars
       ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t]))
 
-      #print ps[t]
-      #print np.argmax(ps[t])
-
-      for i in range(self.table_x):
-        mean_proba_case[i].append(ps[t][i])
-
-      cases_max.append(np.argmax(ps[t]))
-
       if targets[t][np.argmax(ps[t])] != 1:
-        incorrect += 1.0
-        fausse_place_mot[self.mots_to_ix[debug[t+1]]].append(np.argmax(ps[t]))
-      else:
-        correct += 1.0
-        bonne_place_mot[self.mots_to_ix[debug[t+1]]].append(np.argmax(ps[t]))
+        erreur_mot[self.mots_to_ix[debug[t+1]]].append(np.argmax(ps[t]))
 
       for i in range(len(ps[t])):
         place_mot[self.mots_to_ix[debug[t+1]]][i] += ps[t][i]
@@ -140,19 +127,7 @@ class RNN_mots(Rnn):
           sum_mean_pred_true += ps[t][i]
       mean_pred_true.append(sum_mean_pred_true)
 
-      for i,b in enumerate(targets[t]):
-        if b == 1:
-          proba_chaque_mot[self.mots_to_ix[debug[t+1]]].append(ps[t][i])
-
-    """
-    print "moyenne de correct = ", (correct/(correct+incorrect))
-    print "moyenne pred app:",np.mean(mean_pred)
-    print "moyenne pred true app:",np.mean(mean_pred_true)
-    """
-    #print ps
-    #print cases_max
-
-    return hs[len(inputs)-1], np.mean(mean_pred), np.mean(mean_pred_true), proba_chaque_mot, fausse_place_mot, bonne_place_mot, cases_max, mean_proba_case, place_mot
+    return hs[len(inputs)-1], np.mean(mean_pred), np.mean(mean_pred_true), place_mot, erreur_mot
 
   def sample(self, h, seed_ix, n):
     """ 
@@ -382,39 +357,16 @@ class RNN_mots(Rnn):
 
     m, p = 0, 0
 
-    proba_chaque_mot = {}
-    fausse_place_mot = {}
-    bonne_place_mot = {}
-
-    mean_proba_case = {}
-
-    for i in range(self.table_x):
-      mean_proba_case[i] = []
-
-    for i in range(len(self.mots)):
-
-      proba_chaque_mot[i] = []
-      fausse_place_mot[i] = []
-      bonne_place_mot[i] = []
-
-    printProgress(0, self.nbr_it, prefix = 'Classif mot:', suffix = 'fini', barLength = 50)
-
-    cases_max_total = []
-
     place_mot = {}
     for i in range(len(self.mots)):
       place_mot[i] = {}
       for j in range(self.table_x):
         place_mot[i][j] = 0.0
 
-    #while m < (self.nbr_it):
-    while m < 1000:
-
-      """TEST"""
-      #self.hprev = np.zeros((self.hidden_size,1)) # reset RNN memory
-      """
-      FIN TEST
-      """
+    #val_ite_max = self.nbr_it
+    val_ite_max = 1000
+    printProgress(0, val_ite_max, prefix = 'Classif mot:', suffix = 'fini', barLength = 50)
+    while m < val_ite_max:
 
       if p+self.seq_length+1 >= len(self.data_mots_origin) or m == 0:
         self.hprev = np.zeros((self.hidden_size,1)) # reset RNN memory
@@ -424,9 +376,7 @@ class RNN_mots(Rnn):
       self.inputs =  self.data_mots[p:p+self.seq_length]
       targets = self.data_mots[p+1:p+self.seq_length+1]
 
-      self.hprev, mean_pred, mean_pred_true, proba_chaque_mot, fausse_place_mot, bonne_place_mot, cases_max, mean_proba_case, place_mot = self.funnyClass(self.inputs, targets, self.hprev, debug, proba_chaque_mot, fausse_place_mot, bonne_place_mot, mean_proba_case, place_mot)
-
-      cases_max_total += cases_max
+      self.hprev, mean_pred, mean_pred_true, place_mot, erreur_mot = self.funnyClass(self.inputs, targets, self.hprev, debug, place_mot)
 
       if m % 10 == 0 and hasattr(self, 'self.trace_proba_no_correct'):
         self.trace_proba_no_correct.addToMean(mean_pred,mean_pred_true)
@@ -436,41 +386,26 @@ class RNN_mots(Rnn):
 
       p += self.seq_length
       m += 1 # iteration counter 
-      printProgress(m, self.nbr_it, prefix = 'Classif mot:', suffix = 'de '+str(self.nbr_it), barLength = 50)
+      printProgress(m, val_ite_max, prefix = 'Classif mot:', suffix = 'de '+str(val_ite_max), barLength = 50)
 
-    mean_chaque_mot = { self.ix_to_mots[i]:np.mean(proba_chaque_mot[i]) for i,ligne in enumerate(proba_chaque_mot) }
-    name_min = ""
-    val_min = 1.0
-    cmpt_bon = 0
+    for i,mot in enumerate(self.mots_to_ix):
+      #print "mot",mot
+      #print "selfmottoix",self.mots_to_ix[mot]
+      #print "case",self.mots_to_ix_tab[mot]
+      #print place_mot[self.mots_to_ix[mot]]
+      if erreur_mot:
+        #print "erreur!"
+        #print place_mot[self.mots_to_ix[mot]]
+        self.classifieur.modifCaseMot(mot,place_mot[self.mots_to_ix[mot]],mean_pred_true)
+      #else:
+        #print "pas d'erreur!"
+        #print place_mot[self.mots_to_ix[mot]]
 
-    for i,mot in enumerate(mean_chaque_mot):
-      bon = 0.0
-      mauvais = 0.0
-      bon = float(len(bonne_place_mot[self.mots_to_ix[mot]]))
-      mauvais = float(len(fausse_place_mot[self.mots_to_ix[mot]]))
-
-      if mauvais != 0.0:
-          
-        case_depart = { elt:bonne_place_mot[self.mots_to_ix[mot]].count(elt) for elt in list(set(bonne_place_mot[self.mots_to_ix[mot]])) }
-        liste_mauvais = { elt:fausse_place_mot[self.mots_to_ix[mot]].count(elt) for elt in list(set(fausse_place_mot[self.mots_to_ix[mot]])) }
-
-        self.classifieur.modifCaseMot(mot,mean_chaque_mot[mot],mean_pred_true,case_depart,liste_mauvais,place_mot[self.mots_to_ix[mot]])
-
-        #print "taux reussite :",bon/(bon+mauvais)
-        if mean_chaque_mot[mot] < val_min:
-          val_min = mean_chaque_mot[mot]
-          name_min = mot
-
-      else:
-        cmpt_bon += 1
-
-    #print "min :",name_min,val_min
-    #print "pure bon:",cmpt_bon
-
-    print "mean pred true",mean_pred_true
+    #print "mean pred true",mean_pred_true
+    """
     for i,case in enumerate(self.table_hach):
       print "case",i,"->",cases_max_total.count(i),"fois en pred max",np.mean(mean_proba_case[i]),"%"
-
+    """
     self.last_mean_pred_true = mean_pred_true
 
     self.updateClassifieur()
