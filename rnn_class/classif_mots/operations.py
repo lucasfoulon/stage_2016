@@ -4,16 +4,21 @@ Classifieur de mots
 """
 import numpy as np
 from copy import deepcopy
+import os
+from datetime import datetime
 
 class Classif_mots():
 
   def __init__(self,nbr_case,nbr_elt,nbr_elt_case,text,mots_to_ix,ix_to_mots,mots):
+
+    """
+    Initialise les cases
+    et un vecteur pour chaque mot
+    Ce vecteur représentera le taux d'appel du mot dans chaque case
+    """
     
-    print "insere table"
     self.mots = mots
 
-    #self.table = table
-    #self.parcoursTexteClassif(text,mots_to_ix,ix_to_mots,nbr_case,nbr_elt_case)
     self.sansPreClassif(nbr_elt_case)
 
     print self.table
@@ -36,81 +41,73 @@ class Classif_mots():
           self.classif_mot[mot][i] = 1.0
           self.mots_to_num_case[mot] = i
 
+    name_directory = "donnees_classif"
+
+    if not os.path.exists(name_directory):
+      os.makedirs(name_directory)
+
+    now = datetime.now()
+
+    date_directory = ""+str(now.month)+"_"+str(now.day)+"_"+str(now.hour)+"_"+str(now.minute)
+
+    self.file = open(""+name_directory+"/"+date_directory, "w")
+
   def majTable(self):
+    """
+    Met à jour la table
+    Déplace les mots dans les cases
+    """
     for cl_mot in self.classif_mot:
       nvll_pos = np.argmax(self.classif_mot[cl_mot])
       if nvll_pos != self.mots_to_num_case[cl_mot]:
-        """Modif 1"""
-        #print cl_mot
-        #print self.table[self.mots_to_num_case[cl_mot]]
         """retrait de l'ancienne case"""
         if cl_mot in self.table[self.mots_to_num_case[cl_mot]]: self.table[self.mots_to_num_case[cl_mot]].remove(cl_mot)
-        #print self.table[self.mots_to_num_case[cl_mot]]
         """ajout dans la nouvelle case"""
         if cl_mot not in self.table[nvll_pos] : self.table[nvll_pos].append(cl_mot)
         """Modif 2"""
         self.mots_to_num_case[cl_mot] = nvll_pos
-        #print self.table
 
   def modifCaseMot(self,mot,pred_case,mean_pred_true):
-    #print "A TESTER"
+
     """
-    On additionne toujours les valeurs calculees
+    Modifie les vecteurs des mots
+    Si la proba d'une case pour un mot est élevé, la valeur du vecteur du mot à l'indice de la case est récompensée
+    Sinon elle reçoit un malus
     """
+
     sum_pred = 0.0
     for i,case in enumerate(pred_case):
       sum_pred += float(pred_case[i])
 
-    pourcent_case = {}
-    for i,case in enumerate(pred_case):
-      pourcent_case[i] = float(pred_case[i])/sum_pred
+    if sum_pred != 0.0:
 
-    #print "for word",mot
-    #print "before",self.classif_mot[mot]
+      pourcent_case = {}
+      for i,case in enumerate(pred_case):
+        pourcent_case[i] = float(pred_case[i])/sum_pred
 
-    #print np.sum(pourcent_case)
+      self.file.write("for word"+mot+"\n")
+      self.file.write("before"+str(self.classif_mot[mot])+"\n")
+      for i,case in enumerate(pred_case):
+        if case != self.mots_to_num_case[mot]:
+          if pourcent_case[i] > ( (float(len(self.table[i]))/float(self.nbr_elt) ) * 0.8 ):
+            rat = np.exp( - (float(len(self.table[i])) - self.moy_nbr_elt) )
+            self.classif_mot[mot][i] += np.clip(pourcent_case[i]*rat, -2.0, 2.0)
+          else:
 
-    for i,case in enumerate(pred_case):
-      """
-      Si on est pas dans la case actuelle
-      Peut-etre faire le cas ou l'on est dans la case actuelle pour la pénaliser légèrement
-      si elle ne fait pas un bon score
-      permettrait peut etre d'aller plus vite, et de mieux ranger les derniers mots
-      """
-      if case != self.mots_to_num_case[mot]:
-        #rat = ( float(self.nbr_elt_case) - (float(len(self.table[i])) ) / float(self.nbr_elt_case) )
-        if pourcent_case[i] > ( (1.0/float(self.nbr_case)) * 0.8 ):
-          rat = np.exp( - (float(len(self.table[i])) - self.moy_nbr_elt) )
-          """
-          Utile de mettre rat au carré? 
-          Solution vient peut etre du fait que 2 rat diff pour chaque contexte
-          Les derniers mots a trié sont trop ralenti par rat au carre...
+            rat = np.exp( float(len(self.table[i])) - self.moy_nbr_elt )
+            self.classif_mot[mot][i] -= np.clip((1.0-pourcent_case[i])*rat, -2.0, 2.0)
+            if self.classif_mot[mot][i] < 0.0:
+              self.classif_mot[mot][i] = 0.0
 
-          oui mais SINON l'absorption est toujours trop grande!!!
-          """
-          self.classif_mot[mot][i] += np.clip(pourcent_case[i]*rat*rat, -2.0, 2.0)
-        else:
-          rat = np.exp( float(len(self.table[i])) - self.moy_nbr_elt )
-          #print "taille case =",len(self.table[i]),"donc rat =",rat,"alors rat*rat=",(rat*rat)
-          self.classif_mot[mot][i] -= np.clip((1.0-pourcent_case[i])*rat*rat, -2.0, 2.0)
-          if self.classif_mot[mot][i] < 0.0:
-            self.classif_mot[mot][i] = 0.0
-
-        """
-        empecher les cases de se vider??
-        - mettre des objets dans case vide?
-        - si une case possede un (*** pourquoi seulement 1) seul element et que certains elements ont encore une bonne proba d'aller dans cette case:
-          - les deplacer, mais sous quel conditions??
-          - prendre les plus interesses, mais combien?
-          - les meilleurs de chaque case trop pleine?
-          - *** pas sur que ce soit une bonne idee... quoique...
-        """
-
-    #print "after",self.classif_mot[mot]
-    
-    self.majTable()
+      self.file.write("after"+str(self.classif_mot[mot])+"\n")
+      
+      self.majTable()
 
   def sansPreClassif(self,nbr_case):
+
+    """
+    Evite la préclassification
+    """
 
     self.table = []
     tab_temp = []
@@ -128,6 +125,11 @@ class Classif_mots():
       inc +=1
 
   def parcoursTexteClassif(self,text,mots_to_ix,ix_to_mots,nbr_case,nbr_elt):
+
+    """
+    PAS UTILISé
+    Ajoute une pré classification suivant quel mot suit qui
+    """
 
     print "debut parcours"
     matrice_start_end = np.zeros((len(mots_to_ix), len(mots_to_ix)))
@@ -149,6 +151,11 @@ class Classif_mots():
     self.makeCases(matrice_start_end2,matrice_end_start2,mots_to_ix,ix_to_mots,nbr_case,nbr_elt)
 
   def makeCases(self,matrice_start_end2,matrice_end_start2,mots_to_ix,ix_to_mots,nbr_case,nbr_elt):
+
+    """
+    PAS UTILISé
+    Range les mots pré classifiés
+    """
 
     black_list, self.table = [], []
 

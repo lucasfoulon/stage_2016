@@ -1,6 +1,6 @@
 # coding: utf-8
 """
-Classifieur de mots
+Permet de créer un fichier texte au format R sauvegardant les prédictions faites
 """
 import numpy as np
 import copy

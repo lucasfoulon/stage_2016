@@ -1,8 +1,16 @@
 # -*- coding: UTF-8 -*-
+
+"""
+Classe RNN mots
+hérite de la classe rnn_lettre
+classe pere de rnn_mots_anagramme
+classe pere de rnn_mots_matrice_2d
+classe pere de rnn_mots_hache_classif
+"""
+
 import numpy as np
 import time
 from datetime import datetime
-"""time ans datetime??"""
 import cPickle
 import os
 
@@ -13,11 +21,23 @@ from functions import replacePonctuation, flatten
 
 print "module RNN_mots importe"
 
-class RNN_mots(RNN_lettre): 
+class RNN_mots(RNN_lettre):
 
-	def __init__(self,nbr,folder_file,n_file):
+	"""
+	Classe rnn_mots
+	Lit les mots de manière unique
+	"""
 
-		RNN_lettre.__init__(self,nbr,folder_file,n_file)
+	seq_length = 12 # number of steps to unroll the RNN for
+
+	def __init__(self,nbr,load_file):
+
+		"""
+		Fonction d'initialisation
+		Lit le texte pour enumerer les mots
+		"""
+
+		RNN_lettre.__init__(self,nbr,load_file)
 
 		self.vocab_lettre_size = self.vocab_size
 
@@ -67,14 +87,17 @@ class RNN_mots(RNN_lettre):
 				self.matrice_mot[i][ix] += 1
 
 	def initMatrix(self,h_size,v_size):
+
+		"""
+		Initialise les poids des matrices
+		"""
+
 		RNN_lettre.initMatrix(self,h_size,v_size)
 		self.inputs = self.data_mots[0:self.seq_length]
 
 	def lossFun(self, inputs, targets, hprev, xs_size):
 		"""
-		inputs,targets are both list of integers.
-		hprev is Hx1 array of initial hidden state
-		returns the loss, gradients on model parameters, and last hidden state
+		apprentissage
 		"""
 		xs, hs, ys, ps = {}, {}, {}, {}
 		hs[-1] = np.copy(hprev)
@@ -133,20 +156,23 @@ class RNN_mots(RNN_lettre):
 			np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
 		return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1], np.mean(mean_pred), np.mean(mean_pred_true)
 
-	def findPosition(self,val_max,z):
-		position = 1
-		while val_max != np.nanmax(z):
-			z[np.nanargmax(z)] = np.nan
-			position += 1
-		return float(position)
-
 	def pertes(self):
+		"""
+		Calcul le taux de pertes durant l'apprentissage
+		"""
 		print 'loss: %f' % (self.smooth_loss)
 
 	def reinit_hprev(self):
+		"""
+		Réinitialise le contexte
+		"""
 		self.hprev = np.zeros((self.hidden_size,1))
 
 	def openTraceProba(self,nb_file):
+
+		"""
+		Ecrit les probabilités faites
+		"""
 
 		montemps=time.time()
 		now = datetime.now()
@@ -169,11 +195,17 @@ class RNN_mots(RNN_lettre):
 			self.trace_proba_no_correct = Trace_proba(name_directory,date_file_proba,name_file_proba)
 
 	def run(self, mWxh=None, mWhh=None, mWhy=None, mbh=None, mby=None, n_appel=0, openTraceProba=0):
+		"""
+		Fonction threading pour l'apprentissage
+		"""
 		if openTraceProba > 1:
 			self.openTraceProba(openTraceProba)
 		self.learn(mWxh, mWhh, mWhy, mbh, mby, n_appel)
 
 	def learn(self,mWxh=None, mWhh=None, mWhy=None, mbh=None, mby=None, n_appel=0):
+		"""
+		Fonction d'apprentissage
+		"""
 		n, p = 0, 0
 		if mWxh is None or mWhh is None or mWhy is None:
 			mWxh, mWhh, mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
@@ -183,6 +215,8 @@ class RNN_mots(RNN_lettre):
 		montemps=time.time()
 
 		printProgress(0, self.nbr_it, prefix = 'Niv mot:', suffix = 'fini', barLength = 50)
+
+		mean_pred_total = []
 
 		while n < self.nbr_it:
 			# prepare inputs (we're sweeping from left to right in steps seq_length long)
@@ -196,6 +230,9 @@ class RNN_mots(RNN_lettre):
 			# forward seq_length characters through the net and fetch gradient
 			loss, dWxh, dWhh, dWhy, dbh, dby, self.hprev, mean_pred, mean_pred_true = self.lossFun(self.inputs, targets, self.hprev)
 			self.smooth_loss = self.smooth_loss * 0.999 + loss * 0.001
+
+			self.last_mean_pred_true = mean_pred_true
+			mean_pred_total.append(mean_pred_true)
 
 			if hasattr(self, 'self.trace_proba'):
 				self.trace_proba.addToMean(mean_pred,mean_pred_true)
@@ -219,9 +256,14 @@ class RNN_mots(RNN_lettre):
 		reste=t-tiTuple[3]*3600.0-tiTuple[4]*60.0-tiTuple[5]*1.0
 		resteS=("%.2f" % reste )[-2::]
 		tt=time.strftime("%H:%M:%S", tiTuple)+","+resteS
-		print "\ntemps apprentissage : ",tt
+		#print "\ntemps apprentissage : ",tt
+
+		return np.mean(mean_pred_true)
 
 	def save(self, name_directory, type_rnn):
+		"""
+		sauvegarde le réseau
+		"""
 
 		if not os.path.exists(name_directory):
 			os.makedirs(name_directory)
@@ -268,6 +310,9 @@ class RNN_mots(RNN_lettre):
 		cPickle.dump(self.vocab_size, open(path+"/rnn_vocab_size", "wb"))
 
 	def charger_rnn(self, name_directory, date_directory, name_file, type_rnn):
+		"""
+		charge un réseau
+		"""
 
 		adr = "" + name_directory +"/"+ date_directory +"/"+ name_file + "/"
  
@@ -300,6 +345,9 @@ class RNN_mots(RNN_lettre):
 
 
 	def copy(self, rnn_copie):
+		"""
+		copie un réseau
+		"""
 
 		self.Wxh = rnn_copie.Wxh
 		self.Why = rnn_copie.Why

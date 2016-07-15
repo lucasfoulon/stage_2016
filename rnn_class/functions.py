@@ -1,3 +1,7 @@
+"""
+Des fonctions de bases
+"""
+
 def containAtLeastOneWord(text, words):
   for oneWord in words:
     if oneWord in text:

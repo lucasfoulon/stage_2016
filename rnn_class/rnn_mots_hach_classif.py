@@ -1,11 +1,14 @@
 # coding: utf-8
 """
-Minimal character-level Vanilla RNN model. Written by Andrej Karpathy (@karpathy)
-BSD License
+Fichier de la classe RNN 
+hérite de la classe père rnn_mots
+Ce niveau range les mots dans les cases d'un tableau
+Chaque mot est représenté par le numéro de la case
 """
 import numpy as np
 import time
 from math import sqrt, ceil
+from random import randint
 from datetime import datetime
 import itertools
 import cPickle
@@ -17,20 +20,39 @@ from trace_proba.operations import Trace_proba
 from rnn_mots import RNN_mots as Rnn
 
 from regex import printProgress
-
 from functions import replacePonctuation, flatten, find_pui, dim_table
-
 import copy
-
-print "module RNN_lettre importe"
 
 class RNN_mots(Rnn):
 
+  """
+  Classe héritant de RNN_mots dans rnn_mots.py
+  """
+
   data_mots = []
 
-  def __init__(self,nbr,folder_file,n_file,modif_table_hach):
+  def __init__(self,nbr,load_file,modif_table_hach,nbr_neurones=None,lg_sequence=None,taux_app=None):
 
-    Rnn.__init__(self,nbr,folder_file,n_file)
+    """
+    Fonction d'initialisation de la classe
+    Appelle la classe père rnn_mots
+    Puis s'occupe de ranger les mots dans les cases sans connaissances à priori
+    Appelle la classe Classifieur dans classif_mot/operations.py
+    """
+
+    Rnn.__init__(self,nbr,load_file)
+    self.type_rnn = 3
+
+    if(nbr_neurones):
+      self.hidden_size = nbr_neurones
+    if(lg_sequence):
+      self.seq_length = lg_sequence
+    if(taux_app):
+      self.learning_rate = taux_app
+
+    self.nbr_it = nbr
+    indice = load_file.rfind('/')
+    self.name_file = load_file[indice+1:]
 
     self.modif_table_hach = modif_table_hach
 
@@ -41,9 +63,6 @@ class RNN_mots(Rnn):
     self.table_x = int(ceil(len(self.mots)/float(self.table_y)))
     print "nbr de case : ",self.table_x
     print "nbr elt max par case :",self.table_y
-
-    #print self.table_hach
-    #print " "
 
     self.mots_to_ix_tab = { ch:(i/self.table_y) for i,ch in enumerate(self.mots) }
 
@@ -65,6 +84,11 @@ class RNN_mots(Rnn):
       input_mot[num] = 1
       self.ix_to_io.append(input_mot)
 
+    """
+    data_mots contient le texte apprit selon le codage des mots
+    L'apprentissage lit cette liste pour prédire la prochaine case à prédire
+    et pour corriger les poids
+    """
     self.data_mots = []
     for m in self.data_mots_origin:
       self.data_mots.append(self.ix_to_io[self.mots_to_ix[m]])
@@ -88,11 +112,15 @@ class RNN_mots(Rnn):
 
 
   def lossFun(self, inputs, targets, hprev):
+    """
+    Fonction d'apprentissage
+    """
     return Rnn.lossFun(self, inputs, targets, hprev, self.table_x)
 
   def funnyClass(self, inputs, targets, hprev, debug, place_mot):
     """
     Calcul les taux d'erreur pour la classification
+    Utilisé entre deux apprentissages
     """
     xs, hs, ys, ps = {}, {}, {}, {}
     hs[-1] = np.copy(hprev)
@@ -101,12 +129,10 @@ class RNN_mots(Rnn):
     mean_pred_true = []
 
     erreur_mot = {}
-    for i in range(len(self.ix_to_mots)):
-      erreur_mot[i] = []
+    for i in range(len(self.mots)):
+      erreur_mot[i] = False
 
     for t in xrange(len(inputs)):
-      #print "\n***** ",t," ******"
-      #print inputs[t],"->",targets[t]
       xs[t] = np.zeros((self.table_x,1)) # encode in 1-of-k representation
       xs[t] = inputs[t]
       hs[t] = np.tanh(np.dot(self.Wxh, xs[t]) + np.dot(self.Whh, hs[t-1]) + self.bh) # hidden state
@@ -114,7 +140,7 @@ class RNN_mots(Rnn):
       ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t]))
 
       if targets[t][np.argmax(ps[t])] != 1:
-        erreur_mot[self.mots_to_ix[debug[t+1]]].append(np.argmax(ps[t]))
+        erreur_mot[self.mots_to_ix[debug[t+1]]] = True
 
       for i in range(len(ps[t])):
         place_mot[self.mots_to_ix[debug[t+1]]][i] += ps[t][i]
@@ -131,8 +157,8 @@ class RNN_mots(Rnn):
 
   def sample(self, h, seed_ix, n):
     """ 
-    sample a sequence of integers from the model 
-    h is memory state, seed_ix is seed word for first time step
+    Permet de prédire la prochaine case selon le contexte h et la case précédante seed_ix
+    n: le nombre de case à prédire
     """
     x = np.zeros((self.table_x, 1))
 
@@ -163,6 +189,13 @@ class RNN_mots(Rnn):
     return ixes
 
   def sample_letter(self,current_word=None,z=None):
+
+    """
+    La fonction appelée par le niveau 1 pour l'assister dans sa prédiction
+    Retourne la meilleure probabilité pour chaque lettre
+    Retourne aussi ptemp[position_max] pour atténuer ou amplifier la prédiction du niveau 2 (atténue si le réseau de niveau 2 a de faibles prédictions par exemple)
+    et z pour conserver le contexte du réseau de niveau 2
+    """
 
     if z is None:
       #print "Z IS NULL"
@@ -199,26 +232,13 @@ class RNN_mots(Rnn):
       for lettre in proba_lettre:
         proba_lettre[lettre] /= position_val
 
-    #print "prédit:",self.mots[np.argmax(ptemp)],np.amax(ptemp)
-    #if val_max > np.amin(z):
-    #print "amin(z)",np.amin(z)
-    """if position_max != -1:
-      print "lettre-mot predit",lettre_max,val_max/position_val
-      print "mot max predit",mot_max
-      print "proba_mot_max",ptemp[position_max]
-    """
-
-    #print "predit lettre-mot",np.argmax(proba_lettre),np.amax(proba_lettre)
-
-    #z -= np.amin(z)
-    """if lettre_max == " ":
-      print proba_lettre"""
-
     return proba_lettre,ptemp[position_max],z
 
   def changeContext(self,h,prev_w,id_mot):
 
-    #print "CONTEXT CHANGE"
+    """
+    Si le niveau 1 commence à générer un nouveau mot, on change le contexte
+    """
 
     if h is None:
       h = np.zeros((self.hidden_size,1))
@@ -242,14 +262,16 @@ class RNN_mots(Rnn):
 
     ptest = np.exp(z) / np.sum(np.exp(z))
 
-    """print self.table_hach
-    for i,pp in enumerate(ptest):
-      print self.ix_to_mots[i],pp"""
-
     return h,z,id_mot
 
 
   def comp_word(self, prev_word):
+
+    """
+    Cherche le mot le plus semblable entre les mots connus dans le niveau 2
+    et le dernier mot généré dans le niveau
+    (fonction appelée si ce mot n'est pas connu a priori par le niveau 2)
+    """
 
     sum_soustract = np.zeros((self.vocab_size, 1))
 
@@ -281,6 +303,9 @@ class RNN_mots(Rnn):
       return ix_min
 
   def prediction(self):
+    """
+    Appelle la fonction de prédiction et affiche les cases prédites
+    """
     self.hprev = np.zeros((self.hidden_size,1))
     sample_ix = self.sample(self.hprev, self.inputs[0], 100)
     for ana in sample_ix:
@@ -294,9 +319,15 @@ class RNN_mots(Rnn):
     print 'loss: %f' % (self.smooth_loss)
 
   def reinit_hprev(self):
+    """
+    Réinitialise le contexte
+    """
     self.hprev = np.zeros((self.hidden_size,1))
 
   def run(self):
+    """
+    Fonction threading pour l'apprentissage
+    """
 
     self.mWxh, self.mWhh, self.mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
     self.mbh, self.mby = np.zeros_like(self.bh), np.zeros_like(self.by) # memory variables for Adagrad
@@ -304,11 +335,14 @@ class RNN_mots(Rnn):
     Rnn.run(self, self.mWxh, self.mWhh, self.mWhy, self.mbh, self.mby, False)
 
   def learn(self,mWxh=None, mWhh=None, mWhy=None, mbh=None, mby=None, n_appel=0):
+    """
+    Fcontion d'apprentissage
+    """
 
     self.mWxh, self.mWhh, self.mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
     self.mbh, self.mby = np.zeros_like(self.bh), np.zeros_like(self.by) # memory variables for Adagrad
 
-    Rnn.learn(self, mWxh, mWhh, mWhy, mbh, mby, n_appel)
+    mean = Rnn.learn(self, mWxh, mWhh, mWhy, mbh, mby, n_appel)
 
     if self.modif_table_hach:
       self.classifTableHach(n_appel)
@@ -316,8 +350,13 @@ class RNN_mots(Rnn):
     if self.clone_exist:
       self.clone.learn(n_appel)
 
+    return mean
+
 
   def affichTableHach(self):
+    """
+    Affiche les cases et les mots contenus dans les cases
+    """
 
     count_elt = {}
     count_elt_case = {}
@@ -342,11 +381,13 @@ class RNN_mots(Rnn):
       self.clone.affichTableHach()
 
   def saveTabHach(self,name):
+    """
+    Sauvegarde la table dans un fichier
+    """
 
     ecrit_table_hach = open("test_proba/"+self.trace_proba.date_file_proba+"/table_hach_"+name, "w")
 
     for i,case in enumerate(self.table_hach):
-      #print "case",i,"=",len(case),"elements"
       ecrit_table_hach.write("case"+str(i)+"="+str(len(case))+"elements\n")
       ecrit_table_hach.write(str(case)+"\n\n")
 
@@ -354,6 +395,11 @@ class RNN_mots(Rnn):
 
 
   def classifTableHach(self,n_appel):
+
+    """
+    Classifie les mots dans les cases
+    Récupère les probabilités faites sur chaque mot et les envoie au classifieur
+    """
 
     m, p = 0, 0
 
@@ -363,8 +409,18 @@ class RNN_mots(Rnn):
       for j in range(self.table_x):
         place_mot[i][j] = 0.0
 
-    #val_ite_max = self.nbr_it
-    val_ite_max = 1000
+    erreur_mot = {}
+    for i in range(len(self.mots)):
+      erreur_mot[i] = False
+
+    val_ite_max = self.data_size
+    val_ite_max = min(1000,val_ite_max)
+
+    if val_ite_max < self.data_size:
+      p = randint(0, self.data_size-1)
+    
+    print "Classif mot to",p,"at",(p+val_ite_max)
+
     printProgress(0, val_ite_max, prefix = 'Classif mot:', suffix = 'fini', barLength = 50)
     while m < val_ite_max:
 
@@ -376,7 +432,7 @@ class RNN_mots(Rnn):
       self.inputs =  self.data_mots[p:p+self.seq_length]
       targets = self.data_mots[p+1:p+self.seq_length+1]
 
-      self.hprev, mean_pred, mean_pred_true, place_mot, erreur_mot = self.funnyClass(self.inputs, targets, self.hprev, debug, place_mot)
+      self.hprev, mean_pred, mean_pred_true, place_mot, erreur_mot_ite = self.funnyClass(self.inputs, targets, self.hprev, debug, place_mot)
 
       if m % 10 == 0 and hasattr(self, 'self.trace_proba_no_correct'):
         self.trace_proba_no_correct.addToMean(mean_pred,mean_pred_true)
@@ -384,34 +440,50 @@ class RNN_mots(Rnn):
       if m % 10 == 0 and hasattr(self, 'self.trace_proba_no_correct'):
         self.trace_proba_no_correct.writeValue(m+(n_appel/5))
 
+      for i,val in enumerate(erreur_mot_ite):
+        if val:
+          erreur_mot[i] = True
+
       p += self.seq_length
       m += 1 # iteration counter 
       printProgress(m, val_ite_max, prefix = 'Classif mot:', suffix = 'de '+str(val_ite_max), barLength = 50)
 
+    printProgress(0, len(self.mots_to_ix), prefix = 'Trie mot:', suffix = 'fini', barLength = 50)
     for i,mot in enumerate(self.mots_to_ix):
-      #print "mot",mot
-      #print "selfmottoix",self.mots_to_ix[mot]
-      #print "case",self.mots_to_ix_tab[mot]
-      #print place_mot[self.mots_to_ix[mot]]
-      if erreur_mot:
-        #print "erreur!"
-        #print place_mot[self.mots_to_ix[mot]]
+      if erreur_mot[i]:
         self.classifieur.modifCaseMot(mot,place_mot[self.mots_to_ix[mot]],mean_pred_true)
-      #else:
-        #print "pas d'erreur!"
-        #print place_mot[self.mots_to_ix[mot]]
+      printProgress(i, len(self.mots_to_ix), prefix = 'Trie mot:', suffix = 'de '+str(len(self.mots_to_ix)), barLength = 50)
+    print '\n'
 
-    #print "mean pred true",mean_pred_true
-    """
-    for i,case in enumerate(self.table_hach):
-      print "case",i,"->",cases_max_total.count(i),"fois en pred max",np.mean(mean_proba_case[i]),"%"
-    """
     self.last_mean_pred_true = mean_pred_true
+    self.last_mean_pred = mean_pred
 
     self.updateClassifieur()
 
+    self.classifieur.file.write("mean : "+str(mean_pred_true)+"\n")
+
+    count_elt = {}
+    count_elt_case = {}
+
+    for i,case in enumerate(self.table_hach):
+      count_elt_case[i] = 0
+      for ele in case:
+        count_elt[ele] = self.data_mots_origin.count(ele)
+        count_elt_case[i] += count_elt[ele]
+
+    for i,case in enumerate(self.table_hach):
+      self.classifieur.file.write("case"+str(i)+"="+str(len(case))+"elements,"+str(count_elt_case[i])+"occ->")
+      for ele in case:
+        self.classifieur.file.write(ele+" ")
+      self.classifieur.file.write("\n")
+
 
   def updateClassifieur(self):
+
+    """
+    Met à jour le classifieur
+    Le classifieur déplace les mots dans les cases
+    """
 
     self.classifieur.majTable()
 
@@ -431,6 +503,10 @@ class RNN_mots(Rnn):
 
   def closeFile(self):
 
+    """
+    Fermer les fichiers s'ils ont été ouvert
+    """
+
     self.trace_proba_no_correct.close()
     self.trace_proba.close()
     if self.clone_exist:
@@ -439,6 +515,10 @@ class RNN_mots(Rnn):
 
   def creerClone(self):
 
+    """
+    Créé un clone du réseau
+    """
+
     self.clone = RNN_mots(self.nbr_it,self.name_file,False)
     self.clone.clone(self)
 
@@ -446,6 +526,10 @@ class RNN_mots(Rnn):
     self.clone.clone_exist = False
 
   def save(self, name_directory):
+
+    """
+    Sauvegarde le réseau
+    """
 
     now = datetime.now()
 
@@ -489,6 +573,10 @@ class RNN_mots(Rnn):
 
   def charger_rnn(self, name_directory, name_file):
 
+    """
+    Charge le réseau
+    """
+
     adr = "" + name_directory +"/"+ name_file + "/"
  
     self.Wxh = cPickle.load(open(adr+"rnn_wxh"))
@@ -528,6 +616,10 @@ class RNN_mots(Rnn):
 
   def copy(self, rnn_copie):
 
+    """
+    Copie le réseau
+    """
+
     self.Wxh = rnn_copie.Wxh
     self.Why = rnn_copie.Why
     self.Whh = rnn_copie.Whh
@@ -560,6 +652,10 @@ class RNN_mots(Rnn):
 
 
   def clone(self, rnn_copie):
+
+    """
+    Clone le réseau
+    """
 
     self.Wxh = copy.deepcopy(rnn_copie.Wxh)
     self.Why = copy.deepcopy(rnn_copie.Why)

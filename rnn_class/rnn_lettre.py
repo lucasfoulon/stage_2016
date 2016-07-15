@@ -1,7 +1,9 @@
 # -*- coding: UTF-8 -*-
 """
-Minimal character-level Vanilla RNN model. Written by Andrej Karpathy (@karpathy)
-BSD License
+Premiere version écrite par Andrej Karpathy (@karpathy)
+Modifié
+pere de la classe rnn_mots
+Lit les caractères d'un texte lors de l'apprentissage
 """
 import numpy as np
 import time
@@ -18,27 +20,47 @@ from functions import containAtLeastOneWord,isAtLeastOneWord
 print "module RNN_mots importe"
 
 class RNN_lettre(Thread):
+  """
+  La classe RNN lettre pouvant etre executé en thread
+  """
 
   # hyperparameters
-  hidden_size = 100 # size of hidden layer of neurons
-  seq_length = 25 # number of steps to unroll the RNN for
+  hidden_size = 10 # size of hidden layer of neurons
+  seq_length = 12 # number of steps to unroll the RNN for
   learning_rate = 1e-1
 
   list_charspe = [" ","\n",",",":","'",'"',".","-","_","!","?",";"]
 
-  def __init__(self,nbr,folder_file,n_file):
+  def __init__(self,nbr,load_file,nbr_neurones=None,lg_sequence=None,taux_app=None,lg_gene=200,progressbar_tkinder=None):
+    """
+    Fonction d'initialisation de la classe
+    Initialise les matrices de poids, les données à lire
+    """
 
     Thread.__init__(self)
 
+    if(nbr_neurones):
+      self.hidden_size = nbr_neurones
+    if(lg_sequence):
+      self.seq_length = lg_sequence
+    if(taux_app):
+      self.learning_rate = taux_app
+    if(progressbar_tkinder):
+      self.progressbar_tkinder = progressbar_tkinder
+
+    self.lg_gene = lg_gene
+
     self.nbr_it = nbr
-    self.name_file = n_file
+    indice = load_file.rfind('/')
+    self.name_file = load_file[indice+1:]
 
     # data I/O
-    self.text_file = open(folder_file+self.name_file, 'r')
+    self.text_file = open(load_file, 'r')
     self.data = self.text_file.read() # should be simple plain text file
     self.chars = list(set(self.data))
     self.data_size, self.vocab_size = len(self.data), len(self.chars)
     print 'data has %d characters, %d unique.' % (self.data_size, self.vocab_size)
+    print "nombre de neurones",self.hidden_size
     self.char_to_ix = { ch:i for i,ch in enumerate(self.chars) }
     self.ix_to_char = { i:ch for i,ch in enumerate(self.chars) }
 
@@ -51,6 +73,9 @@ class RNN_lettre(Thread):
     self.initMatrix(self.hidden_size,self.vocab_size)
 
   def initMatrix(self,h_size,v_size):
+    """
+    Initialise les matrices de poids
+    """
     # model parameters
     self.Wxh = np.random.randn(h_size, v_size)*0.01 # input to hidden
     self.Whh = np.random.randn(h_size, h_size)*0.01 # hidden to hidden
@@ -65,13 +90,14 @@ class RNN_lettre(Thread):
 
   def lossFun(self, inputs, targets, hprev):
     """
-    inputs,targets are both list of integers.
-    hprev is Hx1 array of initial hidden state
-    returns the loss, gradients on model parameters, and last hidden state
+    Fonction appelée pour l'apprentissage
+    L'erreur est calculées, mais les poids ne sont pas corrigé ici
+    Retourne les erreurs calculées
     """
     xs, hs, ys, ps = {}, {}, {}, {}
     hs[-1] = np.copy(hprev)
     loss = 0
+    mean_pred_true = []
     # forward pass
     for t in xrange(len(inputs)):
       xs[t] = np.zeros((self.vocab_size,1)) # encode in 1-of-k representation
@@ -79,7 +105,8 @@ class RNN_lettre(Thread):
       hs[t] = np.tanh(np.dot(self.Wxh, xs[t]) + np.dot(self.Whh, hs[t-1]) + self.bh) # hidden state
       ys[t] = np.dot(self.Why, hs[t]) + self.by # unnormalized log probabilities for next chars
       ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t])) # probabilities for next chars
-      loss += -np.log(ps[t][targets[t],0]) # softmax (cross-entropy loss)
+      loss += -np.log(ps[t][targets[t],0]) # softmax (cross-entropy loss)mean_pred.append(np.amax(ps[t]))
+      mean_pred_true.append(ps[t][targets[t]])
     # backward pass: compute gradients going backwards
     dWxh, dWhh, dWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
     dbh, dby = np.zeros_like(self.bh), np.zeros_like(self.by)
@@ -97,12 +124,17 @@ class RNN_lettre(Thread):
       dhnext = np.dot(self.Whh.T, dhraw)
     for dparam in [dWxh, dWhh, dWhy, dbh, dby]:
       np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
-    return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1]
+    return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1], np.mean(mean_pred_true)
 
   def sample(self,h,seed_ix,n,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0,ecrire_fichier=False):
-    """ 
-    sample a sequence of integers from the model 
-    h is memory state, seed_ix is seed letter for first time step
+    """
+    Génère un texte suivant:
+    le premier caractère: seed_ix
+    l'état de la couche cachée: h
+    Appelle le niveau 2 si rnn_mots (parametre) n'est pas nul
+    i_lettre_1: influence du niv 2 sur la premiere lettre d'un mot à générer
+    i_lettre: influence du niv 2 sur les autres lettre du mot à générer
+    ecrire_fichier: écrit les probabilités faites dans un fichier si True
     """
 
     if ecrire_fichier:
@@ -123,6 +155,8 @@ class RNN_lettre(Thread):
     current_word = ""
 
     context = True
+
+    printProgress(0, n, prefix = 'Génération', suffix = 'fini', barLength = 50)
 
     for t in xrange(n):
       h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
@@ -161,6 +195,8 @@ class RNN_lettre(Thread):
         #print "lettre choisit:",self.ix_to_char[ix]
         prev_word, current_word, context = self.list_last_word(prev_word, current_word, ix, ixes, context)
 
+      printProgress(t, n, prefix = 'Génération', suffix = 'de '+str(n), barLength = 50)
+
     """WARNING : Pour ne pas influencer les prochaines predictions"""
     if rnn_mots != None:
       rnn_mots.reinit_hprev()
@@ -172,7 +208,12 @@ class RNN_lettre(Thread):
 
     return ixes
 
-  def previsionNivMot(self, y, pmax, rnn_mots,current_word, z):
+  def previsionNivMot(self, y, pmax, rnn_mots, current_word, z):
+    """
+    Appelle le niveau 2
+    Si le début du mot généré existe, le niveau 2 augmente le 'y' du niveau 1
+    pour le caractère à la position (len(current_word)+1)
+    """
 
     """Si le mot courant n'est pas vide"""
     y_letter_word, amax_ptemp_mot, z = rnn_mots.sample_letter(current_word, z)
@@ -195,6 +236,10 @@ class RNN_lettre(Thread):
     return y, z
 
   def list_last_word(self, prev_word, current_word, ix, ixes, context):
+    """
+    Fonction permettant d'obtenir le mot courant
+    et le dernier mot généré fini (c'est à dire le mot précédant le dernier caractère spécial généré)
+    """
 
     # Si un caractere special est deja survenu
     if containAtLeastOneWord(ixes, self.ix_charspe):
@@ -219,15 +264,25 @@ class RNN_lettre(Thread):
     return prev_word, current_word, context
 
   def prediction(self,rnn_mots=None,i_lettre=5.0,i_lettre_1=1.0,ecrire_fichier=False):
-    sample_ix = self.sample(self.hprev, self.inputs[0], 200, rnn_mots,i_lettre,i_lettre_1,ecrire_fichier)
+    """
+    Appelle la fonction pour générer un texte
+    Puis l'affiche et le retourne
+    """
+    sample_ix = self.sample(self.hprev, self.inputs[0], self.lg_gene, rnn_mots,i_lettre,i_lettre_1,ecrire_fichier)
     txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
-    print '----\n %s \n----' % (txt, )
+    #print '----\n %s \n----' % (txt, )
     return txt
 
   def pertes(self):
+    """
+    Calcul taux de perte durant apprentissage
+    """
     print 'loss: %f' % (self.smooth_loss)
 
   def run(self):
+    """
+    Lance le premier apprentissage (fonction Threading)
+    """
     """Pour permettre de continuer a apprendre et de ne pas remettre a chaque fois les matrices a zero"""
     self.mWxh, self.mWhh, self.mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
     self.mbh, self.mby = np.zeros_like(self.bh), np.zeros_like(self.by) # memory variables for Adagrad
@@ -235,12 +290,16 @@ class RNN_lettre(Thread):
     self.apprentissage()
 
   def apprentissage(self):
+    """
+    Fonction d'apprentissage
+    """
 
     n, p = 0, 0
 
     # montemps=time.time()
 
     printProgress(0, self.nbr_it, prefix = 'Niv lettre:', suffix = 'fini', barLength = 50)
+    mean_pred_total = []
 
     while n < self.nbr_it:
       # prepare inputs (we're sweeping from left to right in steps seq_length long)
@@ -264,10 +323,11 @@ class RNN_lettre(Thread):
       """
 
       # forward seq_length characters through the net and fetch gradient
-      loss, dWxh, dWhh, dWhy, dbh, dby, self.hprev = self.lossFun(self.inputs, targets, self.hprev)
+      loss, dWxh, dWhh, dWhy, dbh, dby, self.hprev, mean_pred_true = self.lossFun(self.inputs, targets, self.hprev)
       self.smooth_loss = self.smooth_loss * 0.999 + loss * 0.001
       """if n % 1000 == 0: print 'iter %d, loss: %f' % (self.n, self.smooth_loss) # print progress
       """
+      mean_pred_total.append(mean_pred_true)
 
       # perform parameter update with Adagrad
       for param, dparam, mem in zip([self.Wxh, self.Whh, self.Why, self.bh, self.by], 
@@ -286,43 +346,55 @@ class RNN_lettre(Thread):
     # resteS=("%.2f" % reste )[-2::]
     # tt=time.strftime("%H:%M:%S", tiTuple)+","+resteS
     # print tt
+    return mean_pred_total
 
 
   def save(self, name_directory):
+    """
+    Sauvegarde le réseau
+    """
 
     now = datetime.now()
 
-    name_file = ""+str(now.year)+"_"+str(now.month)+"_"+str(now.day)+"_"+str(now.hour)+"_"+str(now.minute)+"-"+str(self.nbr_it)+"-"+str(self.hidden_size)+"-"+self.name_file+"_rnn_lettre"
+    name_file = ""+str(now.year)+"_"+str(now.month)+"_"+str(now.day)+"_"+str(now.hour)+"_"+str(now.minute)+"-"+str(self.nbr_it)+"-"+str(self.hidden_size)+"-"+self.name_file
     
     if not os.path.exists(name_directory):
       os.makedirs(name_directory)
 
+    if not os.path.exists(name_directory+"/rnn_lettre"):
+      os.makedirs(name_directory+"/rnn_lettre")
+
     if not os.path.exists(name_file):
-      os.makedirs(""+name_directory+"/"+name_file)
+      os.makedirs(""+name_directory+"/rnn_lettre/"+name_file)
 
-    cPickle.dump(self.Wxh, open(""+name_directory+"/"+name_file+"/rnn_wxh", "wb"))
-    cPickle.dump(self.Why, open(""+name_directory+"/"+name_file+"/rnn_why", "wb"))
-    cPickle.dump(self.Whh, open(""+name_directory+"/"+name_file+"/rnn_whh", "wb"))
+    cPickle.dump(self.Wxh, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_wxh", "wb"))
+    cPickle.dump(self.Why, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_why", "wb"))
+    cPickle.dump(self.Whh, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_whh", "wb"))
 
-    cPickle.dump(self.bh, open(""+name_directory+"/"+name_file+"/rnn_bh", "wb"))
-    cPickle.dump(self.by, open(""+name_directory+"/"+name_file+"/rnn_by", "wb"))
+    cPickle.dump(self.bh, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_bh", "wb"))
+    cPickle.dump(self.by, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_by", "wb"))
 
-    cPickle.dump(self.char_to_ix, open(""+name_directory+"/"+name_file+"/rnn_char_to_ix", "wb"))
-    cPickle.dump(self.ix_to_char, open(""+name_directory+"/"+name_file+"/rnn_ix_to_char", "wb"))
-    cPickle.dump(self.inputs, open(""+name_directory+"/"+name_file+"/rnn_inputs", "wb"))
+    cPickle.dump(self.char_to_ix, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_char_to_ix", "wb"))
+    cPickle.dump(self.ix_to_char, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_ix_to_char", "wb"))
+    cPickle.dump(self.inputs, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_inputs", "wb"))
 
-    cPickle.dump(self.data, open(""+name_directory+"/"+name_file+"/rnn_data", "wb"))
-    cPickle.dump(self.data_size, open(""+name_directory+"/"+name_file+"/rnn_data_size", "wb"))
+    cPickle.dump(self.data, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_data", "wb"))
+    cPickle.dump(self.data_size, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_data_size", "wb"))
 
-    cPickle.dump(self.hidden_size, open(""+name_directory+"/"+name_file+"/rnn_hidden_size", "wb"))
-    cPickle.dump(self.hprev, open(""+name_directory+"/"+name_file+"/rnn_hprev", "wb"))
+    cPickle.dump(self.hidden_size, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_hidden_size", "wb"))
+    cPickle.dump(self.hprev, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_hprev", "wb"))
 
-    cPickle.dump(self.learning_rate, open(""+name_directory+"/"+name_file+"/rnn_learning_rate", "wb"))
+    cPickle.dump(self.learning_rate, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_learning_rate", "wb"))
 
-    cPickle.dump(self.smooth_loss, open(""+name_directory+"/"+name_file+"/rnn_smooth_loss", "wb"))
-    cPickle.dump(self.vocab_size, open(""+name_directory+"/"+name_file+"/rnn_vocab_size", "wb"))
+    cPickle.dump(self.smooth_loss, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_smooth_loss", "wb"))
+    cPickle.dump(self.vocab_size, open(""+name_directory+"/rnn_lettre/"+name_file+"/rnn_vocab_size", "wb"))
+
+    return name_directory+"/rnn_lettre/"+name_file
 
   def charger_rnn(self, name_directory, name_file):
+    """
+    Charge un réseau
+    """
 
     adr = "" + name_directory +"/"+ name_file + "/"
  

@@ -1,0 +1,12 @@
+\\Toute les règles doivent commencer par *** et finir ainsi, sauf la première
+\\chargement du fichier
+[1-9](1)$
+[1-9](2)
+***
+[1-9](2)$
+[1-9](3)
+***
+[1-9](3)$
+(\n)[1-9](1)
+***
+\\fin

@@ -1,7 +1,8 @@
 # coding: utf-8
 """
-Minimal character-level Vanilla RNN model. Written by Andrej Karpathy (@karpathy)
-BSD License
+Fichier de la classe RNN 
+hérite de la classe père rnn_mots
+Chaque mot est représenté par son anagramme en entrée/sortie
 """
 import numpy as np
 import time
@@ -17,12 +18,27 @@ print "module RNN_lettre importe"
 
 
 class RNN_mots(Rnn):
+  """
+  Classe héritant de RNN_mots dans rnn_mots.py
+  """
 
   data_mots = []
 
-  def __init__(self,nbr,folder_file,n_file):
+  def __init__(self,nbr,load_file,nbr_neurones=None,lg_sequence=None,taux_app=None):
+    """
+    Fonction d'initialisation de la classe
+    Appelle la classe père rnn_mots
+    """
 
-    Rnn.__init__(self,nbr,folder_file,n_file)
+    Rnn.__init__(self,nbr,load_file)
+    self.type_rnn = 1
+
+    if(nbr_neurones):
+      self.hidden_size = nbr_neurones
+    if(lg_sequence):
+      self.seq_length = lg_sequence
+    if(taux_app):
+      self.learning_rate = taux_app
 
     self.ix_to_io = []
     for mot in self.mots:
@@ -34,7 +50,11 @@ class RNN_mots(Rnn):
       self.ix_to_io.append(input_mot)
 
     #self.mots_to_io = { mot:self.ix_to_io[self.mots_to_ix[mot]] for mot in self.mots_to_ix }
-
+    """
+    data_mots contient le texte apprit selon le codage des mots
+    L'apprentissage lit cette liste pour prédire la prochaine case à prédire
+    et pour corriger les poids
+    """
     for mot in self.data_mots_origin:
       self.data_mots.append(self.ix_to_io[self.mots_to_ix[mot]])
 
@@ -44,16 +64,21 @@ class RNN_mots(Rnn):
     self.seed_ix = 0
     
   def initMatrix(self,h_size,v_size):
+    """
+    Initialise les poids des matrices
+    """
     Rnn.initMatrix(self,h_size,v_size)
     self.hprev_prec = np.zeros((self.hidden_size,1))
 
   def lossFun(self, inputs, targets, hprev):
+    """
+    Fonction d'apprentissage
+    """
     return Rnn.lossFun(self, inputs, targets, hprev, self.vocab_lettre_size)
 
   def sample(self, h, seed_ix, n):
     """ 
-    sample a sequence of integers from the model 
-    h is memory state, seed_ix is seed word for first time step
+    Fonction de génération de texte
     """
     x = np.zeros((self.vocab_lettre_size, 1))
 
@@ -89,9 +114,14 @@ class RNN_mots(Rnn):
     return ixes, ixes_ana
 
   def sample_letter(self,current_word=None,z=None):
+    """
+    La fonction appelée par le niveau 1 pour l'assister dans sa prédiction
+    Retourne la meilleure probabilité pour chaque lettre
+    Retourne aussi ptemp[position_max] pour atténuer ou amplifier la prédiction du niveau 2 (atténue si le réseau de niveau 2 a de faibles prédictions par exemple)
+    et z pour conserver le contexte du réseau de niveau 2
+    """
 
     if z is None:
-      print "Z IS NULL"
       z = np.zeros((self.table_x*self.table_y, 1))
 
     p = np.exp(z) / np.sum(np.exp(z))
@@ -125,54 +155,13 @@ class RNN_mots(Rnn):
       for lettre in proba_lettre:
         proba_lettre[lettre] /= position_val
 
-    print "prédit:",self.mots[np.argmax(ptemp)],np.amax(ptemp)
-    #if val_max > np.amin(z):
-    print "amin(z)",np.amin(z)
-    if position_max != -1:
-      print "lettre-mot predit",lettre_max,val_max/position_val
-      print "mot max predit",mot_max
-      print "proba_mot_max",ptemp[position_max]
-
-    #print "predit lettre-mot",np.argmax(proba_lettre),np.amax(proba_lettre)
-
-    #z -= np.amin(z)
-    """if lettre_max == " ":
-      print proba_lettre"""
-
     return proba_lettre,ptemp[position_max],z
-
-  def sample_next(self, h, prev_w, current_word=None,context_change=False):
-
-
-    """Pour ne pas recalculer a chaque fois"""
-    if context_change:
-      self.prev_word = prev_w 
-      self.hprev = self.hprev_prec
-
-      if self.prev_word in self.ix_to_mots:
-        self.seed_ix = self.ix_to_mots[self.prev_word]
-      elif self.prev_word != "":
-        self.seed_ix = self.comp_word(self.prev_word)
-      else:
-        self.seed_ix = 0
-
-    x = np.zeros((self.vocab_size, 1))
-    x[self.seed_ix] = 1
-    #print "x = ",x
-    ixes = []
-    h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, self.hprev) + self.bh)
-    y = np.dot(self.Why, h) + self.by
-    p = np.exp(y) / np.sum(np.exp(y))
-
-    y -= np.amin(y)
-
-    self.hprev_prec = h
-
-    return y, self.ix_to_io
 
   def changeContext(self,h,prev_w,id_mot):
 
-    print "CONTEXT CHANGE"
+    """
+    Si le niveau 1 commence à générer un nouveau mot, on change le contexte
+    """
 
     if h is None:
       h = np.zeros((self.hidden_size,1))
@@ -180,10 +169,10 @@ class RNN_mots(Rnn):
     if prev_w in self.mots and prev_w != None:
       id_mot = self.mots_to_ix[prev_w]
     elif prev_w != "" and prev_w != None:
-      print prev_w,"naparait pas dans la liste on cherche ..."
+      #print prev_w,"naparait pas dans la liste on cherche ..."
       id_mot = self.comp_word(prev_w)
 
-    print "mot equ:",self.ix_to_mots[id_mot]
+    #print "mot equ:",self.ix_to_mots[id_mot]
     x = self.ix_to_io[id_mot]
     h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
     y = np.dot(self.Why, h) + self.by
@@ -200,10 +189,12 @@ class RNN_mots(Rnn):
 
 
   def comp_word_sample(self, proba):
-
-    #proba = proba * self.vocab_lettre_size
-
-    #print proba
+    """
+    UTILISE pour la génération de niveau 2 seule
+    Cherche le mot le plus semblable entre les mots connus dans le niveau 2
+    et le dernier mot généré dans le niveau
+    (fonction appelée si ce mot n'est pas connu a priori par le niveau 2)
+    """
 
     sum_soustract = np.zeros((self.vocab_size, 1))
 
@@ -215,35 +206,8 @@ class RNN_mots(Rnn):
         if elt == 1:
           #print "comp1 : ",mot
           sum_soustract[i] += abs(proba[j] - (1.0/(self.vocab_lettre_size)))
-          #sum_soustract[i] += abs(proba[j] - (1.0/size_word) )
-          #print abs(proba[j] - (1.0/(size_word)))
-          #print "total = ",sum_soustract[i]
         else:
-          #print "comp0 : ",mot
           sum_soustract[i] += proba[j]
-          #print proba[j]
-          #print "total = ",sum_soustract[i]
-
-    """for i,mot in enumerate(self.mots):
-      stringtest = ""
-      for j,t in enumerate(mot):
-        if t == 1:
-          #print self.ix_to_char[i]
-          stringtest += self.ix_to_char[j]
-      print "pour ",stringtest, " - p = ", sum_soustract[i]"""
-
-    #print sum_soustract
-    #sum_soustract = -np.log(sum_soustract)
-    #print "after ",sum_soustract
-
-    """TEST PROBA
-    p = np.exp(sum_soustract) / np.sum(np.exp(sum_soustract))
-    #print p
-    ix = np.random.choice(range(self.vocab_size), p=p.ravel())
-
-    #print "choix -> ", ix
-
-    return ix"""
 
     val_min =  np.amin(sum_soustract)
     ix_min = np.nanargmin(sum_soustract)
@@ -265,7 +229,11 @@ class RNN_mots(Rnn):
 
   def comp_word(self, prev_word):
 
-    #print "vocab lettre size",self.vocab_lettre_size
+    """
+    Cherche le mot le plus semblable entre les mots connus dans le niveau 2
+    et le dernier mot généré dans le niveau
+    (fonction appelée si ce mot n'est pas connu a priori par le niveau 2)
+    """
 
     sum_soustract = np.zeros((self.vocab_size, 1))
 
@@ -297,9 +265,12 @@ class RNN_mots(Rnn):
       return ix_min
 
   def prediction(self):
+    """
+    Appelle la fonction de génération
+    et affiche le texte généré
+    (affiche plusieurs mots séparés par des '/' si plusieurs mots ont le meme anagramme)
+    """
     sample_ix, sample_ix_ana = self.sample(self.hprev, self.inputs[0], 200)
-    #txt = ' '.join(self.ix_to_mots[ix] for ix in sample_ix)
-    #print '----\n %s \n----' % (txt, )
     print "\n\nPREDICTION\n"
     #print sample_ix_ana
     for ana in sample_ix:
@@ -318,5 +289,14 @@ class RNN_mots(Rnn):
           iteration = True
 
   def run(self):
+    """
+    Fonction threading pour l'apprentissage
+    """
     self.smooth_loss = -np.log(1.0/self.vocab_lettre_size)*self.seq_length # loss at iteration 0
     Rnn.run(self)
+
+  def save(self, name_directory):
+    """
+    Sauvegarde le réseau
+    """
+    Rnn.save(self, name_directory, "anagramme")

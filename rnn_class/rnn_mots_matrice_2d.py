@@ -1,7 +1,8 @@
 # coding: utf-8
 """
-Minimal character-level Vanilla RNN model. Written by Andrej Karpathy (@karpathy)
-BSD License
+Fichier de la classe RNN 
+hérite de la classe père rnn_mots
+Chaque mot est contenu dans une case de la matrice 2D
 """
 import numpy as np
 import time
@@ -17,12 +18,28 @@ from functions import replacePonctuation, flatten
 print "module RNN_mots table 2d importe"
 
 class RNN_mots(Rnn):
+  """
+  Classe héritant de RNN_mots dans rnn_mots.py
+  """
 
   data_mots = []
 
-  def __init__(self,nbr,folder_file,n_file):
+  def __init__(self,nbr,load_file,nbr_neurones=None,lg_sequence=None,taux_app=None):
+    """
+    Fonction d'initialisation de la classe
+    Appelle la classe père rnn_mots
+    Range les mots dans les cases de la matrice 2D
+    """
 
-    Rnn.__init__(self,nbr,folder_file,n_file)
+    Rnn.__init__(self,nbr,load_file)
+    self.type_rnn = 2
+
+    if(nbr_neurones):
+      self.hidden_size = nbr_neurones
+    if(lg_sequence):
+      self.seq_length = lg_sequence
+    if(taux_app):
+      self.learning_rate = taux_app
 
     self.table_square_size = int(ceil(sqrt(len(self.mots))))
     self.table_x = self.table_square_size
@@ -43,7 +60,11 @@ class RNN_mots(Rnn):
           #print input_mot
 
     #print self.data_mots_origin
-
+    """
+    data_mots contient le texte apprit selon le codage des mots
+    L'apprentissage lit cette liste pour prédire la prochaine case à prédire
+    et pour corriger les poids
+    """
     for m in self.data_mots_origin:
       self.data_mots.append(self.ix_to_io[self.mots_to_ix[m]])
 
@@ -51,15 +72,20 @@ class RNN_mots(Rnn):
 
     
   def initMatrix(self,h_size,v_size):
+    """
+    Initialise les poids des matrices
+    """
     Rnn.initMatrix(self,h_size,v_size)
 
   def lossFun(self, inputs, targets, hprev):
+    """
+    Fonction d'apprentissage
+    """
     return Rnn.lossFun(self, inputs, targets, hprev, self.table_x+self.table_y)
 
   def sample(self, h, seed_ix, n):
     """ 
-    sample a sequence of integers from the model 
-    h is memory state, seed_ix is seed word for first time step
+    Fonction de génération de texte
     """
     x = np.zeros((self.table_x+self.table_y, 1))
 
@@ -70,8 +96,6 @@ class RNN_mots(Rnn):
     liste_proba = []
 
     for t in xrange(n):
-
-      #print "\n*****",t,"*****"
 
       h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
       y = np.dot(self.Why, h) + self.by
@@ -91,17 +115,9 @@ class RNN_mots(Rnn):
           z[num] = (val1 + val2)
 
       z = z[:len(self.mots)]
-
       p = np.exp(z) / np.sum(np.exp(z))
-
-      #print p
       ix = np.random.choice(range(len(self.mots)), p=p.ravel())
-      """TEST"""
-      #ix = np.argmax(p)
-      #ana[1]*(self.table_x)+ana[0]
-
       """debug"""
-      #print self.ix_to_mots[ix],"(",ix,")","proba:",p[ix]
       liste_proba.append(p[ix])
       if ix >= len(self.mots):
         print "DEPASSEMENT !!!",ix
@@ -114,14 +130,17 @@ class RNN_mots(Rnn):
 
       ixes.append(ix)
 
-    #print "moyenne pred only:",np.mean(liste_proba)
-
     return ixes
 
   def sample_letter(self,current_word=None,z=None):
+    """
+    La fonction appelée par le niveau 1 pour l'assister dans sa prédiction
+    Retourne la meilleure probabilité pour chaque lettre
+    Retourne aussi ptemp[position_max] pour atténuer ou amplifier la prédiction du niveau 2 (atténue si le réseau de niveau 2 a de faibles prédictions par exemple)
+    et z pour conserver le contexte du réseau de niveau 2
+    """
 
     if z is None:
-      print "Z IS NULL"
       z = np.zeros((self.table_x*self.table_y, 1))
 
     p = np.exp(z) / np.sum(np.exp(z))
@@ -155,25 +174,13 @@ class RNN_mots(Rnn):
       for lettre in proba_lettre:
         proba_lettre[lettre] /= position_val
 
-    print "prédit:",self.mots[np.argmax(ptemp)],np.amax(ptemp)
-    #if val_max > np.amin(z):
-    print "amin(z)",np.amin(z)
-    if position_max != -1:
-      print "lettre-mot predit",lettre_max,val_max/position_val
-      print "mot max predit",mot_max
-      print "proba_mot_max",ptemp[position_max]
-
-    #print "predit lettre-mot",np.argmax(proba_lettre),np.amax(proba_lettre)
-
-    #z -= np.amin(z)
-    """if lettre_max == " ":
-      print proba_lettre"""
-
     return proba_lettre,ptemp[position_max],z
 
   def changeContext(self,h,prev_w,id_mot):
 
-    print "CONTEXT CHANGE"
+    """
+    Si le niveau 1 commence à générer un nouveau mot, on change le contexte
+    """
 
     if h is None:
       h = np.zeros((self.hidden_size,1))
@@ -181,10 +188,8 @@ class RNN_mots(Rnn):
     if prev_w in self.mots and prev_w != None:
       id_mot = self.mots_to_ix[prev_w]
     elif prev_w != "" and prev_w != None:
-      print prev_w,"naparait pas dans la liste on cherche ..."
       id_mot = self.comp_word(prev_w)
 
-    print "mot equ:",self.ix_to_mots[id_mot]
     x = self.ix_to_io[id_mot]
     h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
     y = np.dot(self.Why, h) + self.by
@@ -194,20 +199,24 @@ class RNN_mots(Rnn):
     y2 = y[self.table_x:]
 
     z = np.zeros((self.table_x*self.table_y, 1))
-    #print z
 
     """multiplication en 'matrice' des probas"""
     for u,val2 in enumerate(y2):
       for v,val1 in enumerate(y1):
         num = u*self.table_x+v
         z[num] = (val1 + val2)
-        #print z[num]
 
     z = z[:len(self.mots)]
 
     return h,z,id_mot
 
   def comp_word(self, prev_word):
+
+    """
+    Cherche le mot le plus semblable entre les mots connus dans le niveau 2
+    et le dernier mot généré dans le niveau
+    (fonction appelée si ce mot n'est pas connu a priori par le niveau 2)
+    """
 
     sum_soustract = np.zeros((self.vocab_size, 1))
 
@@ -243,6 +252,10 @@ class RNN_mots(Rnn):
       return ix_min
 
   def prediction(self):
+    """
+    Appelle la fonction de génération
+    Et affiche le texte généré
+    """
     self.hprev = np.zeros((self.hidden_size,1))
     sample_ix = self.sample(self.hprev, self.inputs[0], 200)
     for ana in sample_ix:
@@ -250,11 +263,20 @@ class RNN_mots(Rnn):
     print " "
 
   def run(self):
+    """
+    Fonction threading pour l'apprentissage
+    """
     self.smooth_loss = -np.log(1.0/(self.table_x+self.table_y))*self.seq_length # loss at iteration 0
     Rnn.run(self)
 
   def save(self, name_directory):
+    """
+    sauvegarde le réseau
+    """
     Rnn.save(self, name_directory, "matrice_2d")
 
   def charger_rnn(self, name_directory, date_directory, name_file):
+    """
+    charge le réseau
+    """
     Rnn.charger_rnn(self, name_directory, date_directory, name_file, "matrice_2d")
